@@ -703,7 +703,9 @@ function setupOrUpdateDashboardSheet() {
 
   dash.clear();
   dash.clearFormats();
-  dash.setGridlines(true);
+  try {
+    dash.setHideGridlines(false);
+  } catch (eGrid) {}
 
   // S'assurer qu'il y a assez de lignes et de colonnes
   if (dash.getMaxRows() < 50) {
