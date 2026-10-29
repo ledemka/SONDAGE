@@ -516,55 +516,6 @@
       color: var(--primary);
     }
 
-    /* Config Modal */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(4px);
-      z-index: 100;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-
-    .modal-overlay.open {
-      display: flex;
-    }
-
-    .modal-card {
-      background: #ffffff;
-      border-radius: var(--radius);
-      max-width: 540px;
-      width: 100%;
-      padding: 24px;
-      box-shadow: var(--shadow-lg);
-      border: 1px solid var(--border-light);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-
-    .modal-title {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 1.4rem;
-      cursor: pointer;
-      color: #94a3b8;
-      line-height: 1;
-    }
-
     .status-alert {
       padding: 12px 14px;
       border-radius: var(--radius-sm);
@@ -680,7 +631,7 @@
   <div class="app-container" id="app">
     <!-- Top toolbar for data privacy and local controls -->
     <div class="top-toolbar">
-      <button type="button" class="pill-btn" onclick="exportCurrentOrDraftCsv()" title="Télécharger la saisie actuelle en CSV de secours">
+      <button type="button" class="pill-btn" onclick="exportSingleSubmissionCsv()" title="Télécharger la saisie actuelle en CSV de secours">
         📥 Sauvegarde CSV de secours
       </button>
       <button type="button" class="pill-btn" onclick="purgeLocalDataWithConfirmation()" title="Purger le brouillon et réinitialiser le formulaire" style="color:#b91c1c;">
@@ -1660,7 +1611,6 @@
     const btnPrev = document.getElementById("btnPrev");
     const btnNext = document.getElementById("btnNext");
     const btnSubmit = document.getElementById("btnSubmit");
-    const localCountBadge = document.getElementById("localCountBadge");
 
     /* =====================================================================
        INIT ON DOM READY
@@ -2460,10 +2410,6 @@
         hideSubmitError();
         alert("✅ Données locales effacées et formulaire réinitialisé.");
       }
-    }
-
-    function exportCurrentOrDraftCsv() {
-      exportSingleSubmissionCsv();
     }
 
     function autoSaveDraft() {

@@ -51,8 +51,7 @@ Le projet repose sur une architecture 3-tiers robuste éliminant définitivement
 ├── INSTRUCTIONS_GOOGLE_SHEETS.md # Guide de déploiement Apps Script et sécurité
 ├── README.md                   # Documentation générale et technique
 ├── test_suite.ps1              # Suite de tests automatisés (audit statique & intégration isolée)
-├── ENQUETE_MARCHE_PRODUCTION.zip # Archive ZIP livrable pour déploiement
-└── backup_original/            # Sauvegarde des fichiers initiaux du projet
+└── ENQUETE_MARCHE_PRODUCTION.zip # Archive ZIP livrable pour déploiement
 ```
 
 ---

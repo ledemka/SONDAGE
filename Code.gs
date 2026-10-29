@@ -10,11 +10,9 @@
  *    est préservé sans altération des données historiques.
  * 2. Idempotence durable : Vérification permanente dans la colonne A (Submission_ID)
  *    avec verrouillage atomique LockService (aucun doublon même en concurrence).
- * 3. Endpoint de vérification dans doGet : Permet au client de vérifier
- *    qu'une soumission a bien été enregistrée (?action=verify&submission_id=...).
- * 4. Validation stricte serveur : Rejet explicite des emails invalides,
+ * 3. Validation stricte serveur : Rejet explicite des emails invalides,
  *    des champs manquants, du honeypot et des charges trop volumineuses.
- * 5. Fonction de migration sécurisée : migrateLegacyV1ToV2() disponible pour
+ * 4. Fonction de migration sécurisée : migrateLegacyV1ToV2() disponible pour
  *    l'administrateur.
  */
 
@@ -238,11 +236,6 @@ function doPost(e) {
     ];
 
     sheet.appendRow(row);
-
-    // Mémoriser dans le cache temporaire également
-    try {
-      CacheService.getScriptCache().put("sub_" + submissionId, String(sheet.getLastRow()), 21600);
-    } catch (e) {}
 
     return jsonResponse({
       status: "success",
