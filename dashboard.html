@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de Bord KPI — Enquête Marché Cameroun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js 4 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --primary-light: #ccfbf1;
+      --accent: #d97706;
+      --accent-light: #fef3c7;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --success: #16a34a;
+      --success-bg: #dcfce7;
+      --danger: #dc2626;
+      --danger-bg: #fee2e2;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.03);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Container */
+    .dashboard-container {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 24px 20px 60px 20px;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cameroon-flag-svg {
+      width: 44px;
+      height: 30px;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+
+    .title-group h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-group p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5f9;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      border: 1px solid var(--border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 2px var(--success-bg);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      background: #f1f5f9;
+    }
+
+    /* Auth modal / screen */
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 440px;
+      padding: 32px 28px;
+      text-align: center;
+    }
+
+    .auth-card h2 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .auth-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .auth-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .auth-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+    }
+
+    .auth-error {
+      color: var(--danger);
+      background: var(--danger-bg);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    /* Filters Bar */
+    .filter-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      background: #fafafa;
+      color: var(--text-main);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .filter-select:focus {
+      border-color: var(--primary);
+    }
+
+    .filter-count {
+      margin-left: auto;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 4px 12px;
+      border-radius: 9999px;
+    }
+
+    /* KPI Summary Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--primary);
+    }
+
+    .kpi-card.accent-card::before { background: var(--accent); }
+    .kpi-card.success-card::before { background: var(--success); }
+
+    .kpi-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .kpi-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-icon {
+      font-size: 1.1rem;
+    }
+
+    .kpi-value {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .kpi-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Section Cards & Visualizations */
+    .dashboard-section {
+      margin-bottom: 32px;
+    }
+
+    .section-title-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .section-heading {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .charts-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .charts-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-card-header {
+      margin-bottom: 16px;
+    }
+
+    .chart-card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .chart-card-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .chart-canvas-container {
+      position: relative;
+      flex: 1;
+      min-height: 280px;
+      width: 100%;
+    }
+
+    /* Funnel visual */
+    .funnel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .funnel-step {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .funnel-bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      background: var(--primary-light);
+      opacity: 0.6;
+      z-index: 1;
+      transition: width 0.5s ease;
+    }
+
+    .funnel-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .funnel-step-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .funnel-step-val {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    /* Empty state */
+    .empty-state {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 60px 20px;
+      text-align: center;
+      margin: 40px 0;
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 14px;
+    }
+
+    .empty-state-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .empty-state-desc {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 768px) {
+      .charts-grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .dashboard-container {
+        padding: 14px 12px 40px 12px;
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Écran d'authentification Dashboard -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <!-- SVG Drapeau Officiel Cameroun -->
+      <svg class="cameroon-flag-svg" style="width:54px; height:36px; margin:0 auto 14px auto; display:block;" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+        <rect width="300" height="600" fill="#007a5e"/>
+        <rect x="300" width="300" height="600" fill="#ce1126"/>
+        <rect x="600" width="300" height="600" fill="#fcd116"/>
+        <polygon points="450,225 464,268 509,268 473,294 487,337 450,311 413,337 427,294 391,268 436,268" fill="#fcd116"/>
+      </svg>
+      <h2>Accès Dashboard Réservé</h2>
+      <p>Veuillez saisir le mot de passe d'administration pour consulter les indicateurs de l'étude de marché.</p>
+      
+      <div id="auth-error-msg" class="auth-error">Mot de passe incorrect ou session expirée.</div>
+      
+      <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+        <input type="password" id="auth-password" class="auth-input" placeholder="Mot de passe du dashboard" required autofocus autocomplete="current-password">
+        <button type="submit" id="auth-btn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
+          Déverrouiller le Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="dashboard-container">
+    
+    <!-- Header -->
+    <header>
+      <div class="brand-group">
+        <svg class="cameroon-flag-svg" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="600" fill="#007a5e"/>
+          <rect x="300" width="300" height="600" fill="#ce1126"/>
+          <rect x="600" width="300" height="600" fill="#fcd116"/>
+          <polygon points="450,225 464,268 509,268 473,294 487,337 450,311 413,337 427,294 391,268 436,268" fill="#fcd116"/>
+        </svg>
+        <div class="title-group">
+          <h1>Dashboard de Pilotage — Enquête Marché Cameroun</h1>
+          <p>Analyse analytique des 46 questions — Données réelles Google Sheets</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="last-update-text">En attente de connexion...</span>
+        </div>
+        <button class="btn btn-primary" onclick="loadDashboardData(true)" id="refresh-btn">
+          <span>Actualiser</span>
+        </button>
+        <button class="btn btn-outline" onclick="logoutDashboard()">
+          <span>Déconnexion</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Toolbar Filtres Interactifs -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Ville :</span>
+        <select id="filter-ville" class="filter-select" onchange="applyFilters()">
+          <option value="ALL">Toutes les villes</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Secteur :</span>
+        <select id="filter-secteur" class="filter-select" onchange="applyFilters()">
+          <option value="ALL">Tous les secteurs</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Période :</span>
+        <select id="filter-period" class="filter-select" onchange="applyFilters()">
+          <option value="ALL">Toute la période</option>
+          <option value="7">7 derniers jours</option>
+          <option value="30">30 derniers jours</option>
+        </select>
+      </div>
+
+      <button class="btn btn-outline" style="padding: 6px 12px; font-size: 0.8rem;" onclick="resetFilters()">
+        Réinitialiser filtres
+      </button>
+
+      <div class="filter-count" id="filtered-count-badge">
+        Chargement...
+      </div>
+    </div>
+
+    <!-- Empty State (caché par défaut) -->
+    <div id="empty-state-view" class="empty-state" style="display: none;">
+      <div class="empty-state-icon">📊</div>
+      <h3 class="empty-state-title">Aucune réponse enregistrée</h3>
+      <p class="empty-state-desc">Le classeur Google Sheets ne contient encore aucune réponse de commerçant. Dès que la première soumission sera validée via le formulaire, les indicateurs apparaîtront ici.</p>
+    </div>
+
+    <!-- Main Dashboard Views -->
+    <div id="dashboard-content">
+      
+      <!-- Top KPI Summary Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Réponses Valides</span>
+            <span class="kpi-icon">📝</span>
+          </div>
+          <div class="kpi-value" id="kpi-total">0</div>
+          <div class="kpi-sub" id="kpi-total-sub">Commerçants audités</div>
+        </div>
+
+        <div class="kpi-card success-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Taux de Complétion</span>
+            <span class="kpi-icon">🎯</span>
+          </div>
+          <div class="kpi-value" id="kpi-completion">0%</div>
+          <div class="kpi-sub">≥ 35 questions répondues</div>
+        </div>
+
+        <div class="kpi-card accent-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Candidats Pilote (Q41)</span>
+            <span class="kpi-icon">🚀</span>
+          </div>
+          <div class="kpi-value" id="kpi-pilote">0%</div>
+          <div class="kpi-sub">Prêts à tester l'application</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Prêts à Payer (Q42)</span>
+            <span class="kpi-icon">💳</span>
+          </div>
+          <div class="kpi-value" id="kpi-payer">0%</div>
+          <div class="kpi-sub">Dès les prochaines semaines</div>
+        </div>
+
+        <div class="kpi-card success-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Opt-in Recontact (Q46)</span>
+            <span class="kpi-icon">🤝</span>
+          </div>
+          <div class="kpi-value" id="kpi-recontact">0%</div>
+          <div class="kpi-sub">Accord explicite démo / test</div>
+        </div>
+      </div>
+
+      <!-- SECTION 1 : PROBLÉMATIQUES & INCIDENTS DES COMMERÇANTS -->
+      <section class="dashboard-section">
+        <div class="section-title-wrap">
+          <h2 class="section-heading">
+            <span>1. Problématiques & Gravité des Incidents</span>
+            <span class="section-badge">Section C du Questionnaire</span>
+          </h2>
+        </div>
+
+        <div class="charts-grid-2">
+          <!-- Top Problèmes Q13 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Top 8 des Difficultés Rencontrées (Q13)</h3>
+              <p class="chart-card-desc">% de répondants citant chaque problème (max 3 choix par répondant)</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-problemes-q13"></canvas>
+            </div>
+          </div>
+
+          <!-- Gravité des Incidents -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Fréquence des Incidents Critiques</h3>
+              <p class="chart-card-desc">Part des commerçants subissant des ruptures, écarts de caisse et pertes</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-gravite"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2 : BESOINS FONCTIONNELS & APPLICATION -->
+      <section class="dashboard-section">
+        <div class="section-title-wrap">
+          <h2 class="section-heading">
+            <span>2. Besoins Fonctionnels & Ergonomie</span>
+            <span class="section-badge">Sections D & E</span>
+          </h2>
+        </div>
+
+        <div class="charts-grid-2">
+          <!-- Top Fonctionnalités Q23 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Fonctionnalités les Plus Utiles (Q23)</h3>
+              <p class="chart-card-desc">% de commerçants intéressés par chaque module (max 5 choix)</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-features-q23"></canvas>
+            </div>
+          </div>
+
+          <!-- Infos Smartphone Q25 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Widgets & Indicateurs Smartphone (Q25)</h3>
+              <p class="chart-card-desc">Informations prioritaires à afficher sur l'écran d'accueil mobile</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-smartphone-q25"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 3 : POTENTIEL COMMERCIAL & MODÈLE ÉCONOMIQUE -->
+      <section class="dashboard-section">
+        <div class="section-title-wrap">
+          <h2 class="section-heading">
+            <span>3. Potentiel Commercial & Tarification</span>
+            <span class="section-badge">Section F</span>
+          </h2>
+        </div>
+
+        <div class="charts-grid-3">
+          <!-- Entonnoir de conversion commercial -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Entonnoir de Conversion Commercial</h3>
+              <p class="chart-card-desc">De l'utilité perçue à l'accord de recontact</p>
+            </div>
+            <div class="funnel-list" id="funnel-container">
+              <!-- Rempli dynamiquement -->
+            </div>
+          </div>
+
+          <!-- Prix mensuel acceptable Q37 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Prix Mensuel Acceptable (Q37)</h3>
+              <p class="chart-card-desc">Distribution des budgets en FCFA / mois</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-pricing-q37"></canvas>
+            </div>
+          </div>
+
+          <!-- Mode de paiement préféré Q36 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Mode de Paiement Préféré (Q36)</h3>
+              <p class="chart-card-desc">Abonnement vs Licence unique</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-payment-mode-q36"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4 : PROFIL & DÉMOGRAPHIE -->
+      <section class="dashboard-section">
+        <div class="section-title-wrap">
+          <h2 class="section-heading">
+            <span>4. Profil des Répondants & Segmentation</span>
+            <span class="section-badge">Sections A & B</span>
+          </h2>
+        </div>
+
+        <div class="charts-grid-2">
+          <!-- Villes Q1 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Répartition Géographique (Q1)</h3>
+              <p class="chart-card-desc">Localité des commerces répondants</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-villes"></canvas>
+            </div>
+          </div>
+
+          <!-- Secteurs d'activité Q2 -->
+          <div class="chart-card">
+            <div class="chart-card-header">
+              <h3 class="chart-card-title">Secteurs d'Activité (Q2)</h3>
+              <p class="chart-card-desc">Typologie des commerces audités</p>
+            </div>
+            <div class="chart-canvas-container">
+              <canvas id="chart-secteurs"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5 : TIMELINE -->
+      <section class="dashboard-section">
+        <div class="section-title-wrap">
+          <h2 class="section-heading">
+            <span>5. Évolution de la Collecte</span>
+            <span class="section-badge">Volume Quotidien</span>
+          </h2>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3 class="chart-card-title">Nombre de Réponses par Jour</h3>
+            <p class="chart-card-desc">Rythme des soumissions enregistrées au fil du temps</p>
+          </div>
+          <div class="chart-canvas-container" style="min-height: 240px;">
+            <canvas id="chart-timeline"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>Étude de Marché Commerces au Cameroun • Hébergé sur Vercel • Données synchronisées avec Google Sheets</p>
+      <p style="margin-top: 4px; font-size: 0.78rem;">Toutes les données présentées sont strictement agrégées et anonymisées conformément aux règles de confidentialité.</p>
+    </footer>
+
+  </div>
+
+  <script>
+    /**
+     * LOGIQUE CLIENT DU DASHBOARD
+     */
+    let rawRecords = [];
+    let charts = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedToken = sessionStorage.getItem('dashboard_token');
+      if (savedToken) {
+        document.getElementById('auth-screen').style.display = 'none';
+        loadDashboardData(false);
+      } else {
+        document.getElementById('auth-screen').style.display = 'flex';
+      }
+    });
+
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      const pwd = document.getElementById('auth-password').value.trim();
+      const errBox = document.getElementById('auth-error-msg');
+      const authBtn = document.getElementById('auth-btn');
+
+      errBox.style.display = 'none';
+      authBtn.disabled = true;
+      authBtn.textContent = 'Vérification...';
+
+      try {
+        const res = await fetch(`/api/dashboard?key=${encodeURIComponent(pwd)}`);
+        const json = await res.json();
+
+        if (res.status === 200 && json.status === 'success') {
+          sessionStorage.setItem('dashboard_token', pwd);
+          document.getElementById('auth-screen').style.display = 'none';
+          renderDashboard(json);
+        } else {
+          errBox.textContent = json.message || 'Mot de passe incorrect.';
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = 'Erreur réseau lors de la vérification.';
+        errBox.style.display = 'block';
+      } finally {
+        authBtn.disabled = false;
+        authBtn.textContent = 'Déverrouiller le Dashboard';
+      }
+    }
+
+    function logoutDashboard() {
+      sessionStorage.removeItem('dashboard_token');
+      window.location.reload();
+    }
+
+    async function loadDashboardData(forceRefresh = false) {
+      const token = sessionStorage.getItem('dashboard_token');
+      if (!token) return;
+
+      const refreshBtn = document.getElementById('refresh-btn');
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<span>Chargement...</span>';
+
+      try {
+        const url = `/api/dashboard?key=${encodeURIComponent(token)}${forceRefresh ? '&refresh=true' : ''}`;
+        const res = await fetch(url);
+        
+        if (res.status === 401) {
+          sessionStorage.removeItem('dashboard_token');
+          document.getElementById('auth-screen').style.display = 'flex';
+          return;
+        }
+
+        const data = await res.json();
+        if (data.status === 'success') {
+          renderDashboard(data);
+        } else {
+          alert('Erreur : ' + (data.message || 'Impossible de charger les données.'));
+        }
+      } catch (err) {
+        console.error('Erreur chargement dashboard:', err);
+        alert('Erreur réseau lors de la récupération des données.');
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<span>Actualiser</span>';
+      }
+    }
+
+    function renderDashboard(data) {
+      // 1. Horodatage
+      const updateEl = document.getElementById('last-update-text');
+      if (data.last_updated) {
+        const dt = new Date(data.last_updated);
+        updateEl.textContent = 'Mis à jour : ' + dt.toLocaleTimeString('fr-FR') + ' (' + dt.toLocaleDateString('fr-FR') + ')';
+      }
+
+      // 2. Vérification présence de données
+      rawRecords = data.anonymized_records || [];
+      if (!rawRecords || rawRecords.length === 0) {
+        document.getElementById('empty-state-view').style.display = 'block';
+        document.getElementById('dashboard-content').style.display = 'none';
+        document.getElementById('filtered-count-badge').textContent = '0 réponse';
+        return;
+      }
+
+      document.getElementById('empty-state-view').style.display = 'none';
+      document.getElementById('dashboard-content').style.display = 'block';
+
+      // 3. Initialiser les sélecteurs de filtres (si pas déjà fait)
+      populateFilterOptions(rawRecords);
+
+      // 4. Appliquer les calculs et rendu avec les filtres actuels
+      applyFilters();
+    }
+
+    function populateFilterOptions(records) {
+      const villeSelect = document.getElementById('filter-ville');
+      const secteurSelect = document.getElementById('filter-secteur');
+
+      const currentVille = villeSelect.value;
+      const currentSecteur = secteurSelect.value;
+
+      // Extraire valeurs uniques
+      const villes = [...new Set(records.map(r => r.ville).filter(Boolean))].sort();
+      const secteurs = [...new Set(records.map(r => r.secteur).filter(Boolean))].sort();
+
+      villeSelect.innerHTML = '<option value="ALL">Toutes les villes</option>';
+      villes.forEach(v => {
+        villeSelect.innerHTML += `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`;
+      });
+
+      secteurSelect.innerHTML = '<option value="ALL">Tous les secteurs</option>';
+      secteurs.forEach(s => {
+        secteurSelect.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+      });
+
+      if (villes.includes(currentVille)) villeSelect.value = currentVille;
+      if (secteurs.includes(currentSecteur)) secteurSelect.value = currentSecteur;
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-ville').value = 'ALL';
+      document.getElementById('filter-secteur').value = 'ALL';
+      document.getElementById('filter-period').value = 'ALL';
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const selectedVille = document.getElementById('filter-ville').value;
+      const selectedSecteur = document.getElementById('filter-secteur').value;
+      const selectedPeriod = document.getElementById('filter-period').value;
+
+      const now = new Date();
+
+      const filtered = rawRecords.filter(r => {
+        if (selectedVille !== 'ALL' && r.ville !== selectedVille) return false;
+        if (selectedSecteur !== 'ALL' && r.secteur !== selectedSecteur) return false;
+
+        if (selectedPeriod !== 'ALL' && r.date) {
+          const recDate = new Date(r.date);
+          const diffDays = (now - recDate) / (1000 * 60 * 60 * 24);
+          if (diffDays > parseInt(selectedPeriod, 10)) return false;
+        }
+
+        return true;
+      });
+
+      // Mettre à jour le badge de compteur
+      document.getElementById('filtered-count-badge').textContent = `${filtered.length} sur ${rawRecords.length} réponses`;
+
+      // Recalculer les indicateurs et graphiques
+      renderFilteredMetrics(filtered);
+    }
+
+    function renderFilteredMetrics(rows) {
+      const total = rows.length;
+      if (total === 0) {
+        document.getElementById('kpi-total').textContent = '0';
+        document.getElementById('kpi-completion').textContent = '0%';
+        document.getElementById('kpi-pilote').textContent = '0%';
+        document.getElementById('kpi-payer').textContent = '0%';
+        document.getElementById('kpi-recontact').textContent = '0%';
+        return;
+      }
+
+      // KPIs
+      let completed = 0;
+      let piloteCount = 0;
+      let payerCount = 0;
+      let recontactCount = 0;
+
+      rows.forEach(r => {
+        // complétion
+        let filled = 0;
+        ['q13','q14','q15','q16','q17','q18','q22','q23','q25','q34','q35','q37','q41','q42','q46'].forEach(k => {
+          if (r[k]) filled++;
+        });
+        if (filled >= 10) completed++;
+
+        const q41 = String(r.q41 || '').toLowerCase();
+        if (q41.includes('oui') || q41.includes('gratuit') || q41.includes('réduit') || q41.includes('concluant')) piloteCount++;
+
+        const q42 = String(r.q42 || '').toLowerCase();
+        if (q42 === 'oui' || q42.includes('après une') || q42.includes('peut-être')) payerCount++;
+
+        const q46 = String(r.q46 || '').trim().toLowerCase();
+        if (q46 === 'oui') recontactCount++;
+      });
+
+      document.getElementById('kpi-total').textContent = total;
+      document.getElementById('kpi-completion').textContent = Math.round((completed / total) * 100) + '%';
+      document.getElementById('kpi-pilote').textContent = Math.round((piloteCount / total) * 100) + '%';
+      document.getElementById('kpi-payer').textContent = Math.round((payerCount / total) * 100) + '%';
+      document.getElementById('kpi-recontact').textContent = Math.round((recontactCount / total) * 100) + '%';
+
+      // 1. Chart Q13: Problèmes
+      const q13Dist = calcMultiDistribution(rows, 'q13', total);
+      renderHorizontalBarChart('chart-problemes-q13', q13Dist.labels, q13Dist.pcts, '#0f766e', '% des commerçants concernés');
+
+      // 2. Chart Gravité
+      renderGraviteChart(rows, total);
+
+      // 3. Chart Q23: Fonctionnalités
+      const q23Dist = calcMultiDistribution(rows, 'q23', total);
+      renderHorizontalBarChart('chart-features-q23', q23Dist.labels, q23Dist.pcts, '#2563eb', '% d\'intérêt exprimé');
+
+      // 4. Chart Q25: Infos Smartphone
+      const q25Dist = calcMultiDistribution(rows, 'q25', total);
+      renderHorizontalBarChart('chart-smartphone-q25', q25Dist.labels, q25Dist.pcts, '#d97706', '% de priorité mobile');
+
+      // 5. Entonnoir de conversion
+      renderFunnel(rows, total);
+
+      // 6. Pricing Q37
+      const q37Dist = calcSingleDistribution(rows, 'q37', total);
+      renderBarChart('chart-pricing-q37', q37Dist.labels, q37Dist.counts, '#0d9488', 'Commerçants');
+
+      // 7. Mode de paiement Q36
+      const q36Dist = calcSingleDistribution(rows, 'q36', total);
+      renderDoughnutChart('chart-payment-mode-q36', q36Dist.labels, q36Dist.counts);
+
+      // 8. Villes Q1
+      const villeDist = calcSingleDistribution(rows, 'ville', total);
+      renderBarChart('chart-villes', villeDist.labels, villeDist.counts, '#0f766e', 'Répondants');
+
+      // 9. Secteurs Q2
+      const sectDist = calcSingleDistribution(rows, 'secteur', total);
+      renderHorizontalBarChart('chart-secteurs', sectDist.labels, sectDist.counts, '#475569', 'Commerces');
+
+      // 10. Timeline
+      renderTimelineChart(rows);
+    }
+
+    // Utilitaires de calcul client
+    function calcMultiDistribution(rows, key, total) {
+      const counts = {};
+      rows.forEach(r => {
+        const val = String(r[key] || '').trim();
+        if (!val) return;
+        const items = [...new Set(val.split(';').map(s => s.trim()).filter(Boolean))];
+        items.forEach(it => { counts[it] = (counts[it] || 0) + 1; });
+      });
+
+      const sorted = Object.keys(counts).map(k => ({ label: k, count: counts[k], pct: Math.round((counts[k]/total)*100) }))
+        .sort((a,b) => b.count - a.count);
+
+      return {
+        labels: sorted.map(s => s.label),
+        counts: sorted.map(s => s.count),
+        pcts: sorted.map(s => s.pct)
+      };
+    }
+
+    function calcSingleDistribution(rows, key, total) {
+      const counts = {};
+      rows.forEach(r => {
+        const val = String(r[key] || '').trim() || 'Non renseigné';
+        counts[val] = (counts[val] || 0) + 1;
+      });
+
+      const sorted = Object.keys(counts).map(k => ({ label: k, count: counts[k], pct: Math.round((counts[k]/total)*100) }))
+        .sort((a,b) => b.count - a.count);
+
+      return {
+        labels: sorted.map(s => s.label),
+        counts: sorted.map(s => s.count),
+        pcts: sorted.map(s => s.pct)
+      };
+    }
+
+    // Chart Renderers (Chart.js 4)
+    function renderHorizontalBarChart(canvasId, labels, data, color, datasetLabel) {
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return;
+      if (charts[canvasId]) charts[canvasId].destroy();
+
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.slice(0, 8),
+          datasets: [{
+            label: datasetLabel,
+            data: data.slice(0, 8),
+            backgroundColor: color,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.raw}% des répondants`
+              }
+            }
+          },
+          scales: {
+            x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
+            y: { ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    function renderBarChart(canvasId, labels, data, color, datasetLabel) {
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return;
+      if (charts[canvasId]) charts[canvasId].destroy();
+
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.slice(0, 8),
+          datasets: [{
+            label: datasetLabel,
+            data: data.slice(0, 8),
+            backgroundColor: color,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function renderDoughnutChart(canvasId, labels, data) {
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return;
+      if (charts[canvasId]) charts[canvasId].destroy();
+
+      charts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels.slice(0, 5),
+          datasets: [{
+            data: data.slice(0, 5),
+            backgroundColor: ['#0f766e', '#d97706', '#2563eb', '#10b981', '#94a3b8']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function renderGraviteChart(rows, total) {
+      const ctx = document.getElementById('chart-gravite');
+      if (!ctx) return;
+      if (charts['chart-gravite']) charts['chart-gravite'].destroy();
+
+      // Compter les commerçants sévèrement impactés
+      let rupturesFreq = 0;
+      let beneficeDiff = 0;
+      let ecartCaisse = 0;
+      let dettesOubli = 0;
+      let pertesArgent = 0;
+
+      rows.forEach(r => {
+        const q15 = String(r.q15 || '').toLowerCase();
+        if (q15.includes('semaine') || q15.includes('mois')) rupturesFreq++;
+
+        const q16 = String(r.q16 || '').toLowerCase();
+        if (q16.includes('très souvent') || q16.includes('souvent')) beneficeDiff++;
+
+        const q17 = String(r.q17 || '').toLowerCase();
+        if (q17.includes('très souvent') || q17.includes('parfois')) ecartCaisse++;
+
+        const q18 = String(r.q18 || '').toLowerCase();
+        if (q18.includes('souvent') || q18.includes('parfois')) dettesOubli++;
+
+        const q22 = String(r.q22 || '').toLowerCase();
+        if (q22.startsWith('oui')) pertesArgent++;
+      });
+
+      const labels = [
+        'Ruptures Fréquentes (Q15)',
+        'Flou sur Bénéfices (Q16)',
+        'Écarts Caisse (Q17)',
+        'Oublis Dettes (Q18)',
+        'Pertes Confirmées (Q22)'
+      ];
+
+      const pcts = [
+        Math.round((rupturesFreq / total) * 100),
+        Math.round((beneficeDiff / total) * 100),
+        Math.round((ecartCaisse / total) * 100),
+        Math.round((dettesOubli / total) * 100),
+        Math.round((pertesArgent / total) * 100)
+      ];
+
+      charts['chart-gravite'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: '% affecté',
+            data: pcts,
+            backgroundColor: ['#dc2626', '#ea580c', '#d97706', '#0284c7', '#7c3aed'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
+            x: { ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function renderTimelineChart(rows) {
+      const ctx = document.getElementById('chart-timeline');
+      if (!ctx) return;
+      if (charts['chart-timeline']) charts['chart-timeline'].destroy();
+
+      const counts = {};
+      rows.forEach(r => {
+        if (r.date) {
+          counts[r.date] = (counts[r.date] || 0) + 1;
+        }
+      });
+
+      const dates = Object.keys(counts).sort();
+      const values = dates.map(d => counts[d]);
+
+      charts['chart-timeline'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [{
+            label: 'Réponses reçues',
+            data: values,
+            borderColor: '#0f766e',
+            backgroundColor: 'rgba(15, 118, 110, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#0f766e'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function renderFunnel(rows, total) {
+      const container = document.getElementById('funnel-container');
+      if (!container) return;
+
+      let utilite = 0;
+      let intention = 0;
+      let pilote = 0;
+      let payer = 0;
+      let recontact = 0;
+
+      rows.forEach(r => {
+        const q34 = String(r.q34 || '').toLowerCase();
+        if (q34.includes('très') || q34.includes('indispensable')) utilite++;
+
+        const q35 = String(r.q35 || '').toLowerCase();
+        if (q35.includes('certainement') || q35.includes('probablement')) intention++;
+
+        const q41 = String(r.q41 || '').toLowerCase();
+        if (q41.includes('oui') || q41.includes('gratuit') || q41.includes('réduit') || q41.includes('concluant')) pilote++;
+
+        const q42 = String(r.q42 || '').toLowerCase();
+        if (q42 === 'oui' || q42.includes('après une') || q42.includes('peut-être')) payer++;
+
+        const q46 = String(r.q46 || '').trim().toLowerCase();
+        if (q46 === 'oui') recontact++;
+      });
+
+      const steps = [
+        { name: '1. Utilité Perçue Forte (Q34)', count: utilite, pct: Math.round((utilite/total)*100) },
+        { name: '2. Intention d\'Adoption (Q35)', count: intention, pct: Math.round((intention/total)*100) },
+        { name: '3. Prêts pour Test Pilote (Q41)', count: pilote, pct: Math.round((pilote/total)*100) },
+        { name: '4. Prêts à Payer Court Terme (Q42)', count: payer, pct: Math.round((payer/total)*100) },
+        { name: '5. Accord Recontact Formel (Q46)', count: recontact, pct: Math.round((recontact/total)*100) }
+      ];
+
+      container.innerHTML = steps.map(s => `
+        <div class="funnel-step">
+          <div class="funnel-bar" style="width: ${s.pct}%"></div>
+          <div class="funnel-content">
+            <span class="funnel-step-name">${s.name}</span>
+            <span class="funnel-step-val">${s.count} (${s.pct}%)</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

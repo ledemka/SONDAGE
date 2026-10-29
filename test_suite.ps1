@@ -29,7 +29,7 @@ $PRODUCTION_DEPLOYMENT_ID = "AKfycbxpGZ9YZ3V6SrOzGP-WuTAysm6XTi4z20ri15qnEi8UbXT
 $passed = 0
 $failed = 0
 $skipped = 0
-$totalTests = 15
+$totalTests = 18
 
 function Assert-Test {
     param (
@@ -80,7 +80,7 @@ $vercelJsonExists = Test-Path "vercel.json"
 $apiSubmitExists = Test-Path "api\submit.js"
 $envExampleExists = Test-Path ".env.example"
 $isPass1 = $netlifyGone -and $vercelJsonExists -and $apiSubmitExists -and $envExampleExists
-Assert-Test -TestName "TEST 1/15: Architecture exclusive Vercel (zéro Netlify)" `
+Assert-Test -TestName "TEST 1/18: Architecture exclusive Vercel (zéro Netlify)" `
     -Condition $isPass1 `
     -Expected "netlify/ absent, vercel.json et api/submit.js présents" `
     -Actual "netlify/ absent: $netlifyGone | vercel.json: $vercelJsonExists | api/submit.js: $apiSubmitExists"
@@ -91,7 +91,7 @@ $htmlRaw = Get-Content "index.html" -Raw
 $isPass2 = ($envContent -match "GOOGLE_APPS_SCRIPT_URL=") -and `
            (-not ($envContent -match "^\s*NEXT_PUBLIC_")) -and `
            (-not ($htmlRaw -match "GOOGLE_APPS_SCRIPT_URL"))
-Assert-Test -TestName "TEST 2/15: Variable GOOGLE_APPS_SCRIPT_URL strictement serveur" `
+Assert-Test -TestName "TEST 2/18: Variable GOOGLE_APPS_SCRIPT_URL strictement serveur" `
     -Condition $isPass2 `
     -Expected "Variable sans préfixe NEXT_PUBLIC_, absente du code client" `
     -Actual "Contrôlé avec succès dans .env.example et index.html"
@@ -100,7 +100,7 @@ Assert-Test -TestName "TEST 2/15: Variable GOOGLE_APPS_SCRIPT_URL strictement se
 $hasApiSubmitCall = $htmlRaw.Contains('/api/submit')
 $hasDirectGasCallInClient = ($htmlRaw -match 'fetch\(\s*scriptUrl')
 $isPass3 = $hasApiSubmitCall -and (-not $hasDirectGasCallInClient)
-Assert-Test -TestName "TEST 3/15: Client index.html relié exclusivement à /api/submit" `
+Assert-Test -TestName "TEST 3/18: Client index.html relié exclusivement à /api/submit" `
     -Condition $isPass3 `
     -Expected "Appel fetch('/api/submit') exclusif, aucun appel direct vers Apps Script" `
     -Actual "fetch('/api/submit'): $hasApiSubmitCall | direct GAS: $hasDirectGasCallInClient"
@@ -108,7 +108,7 @@ Assert-Test -TestName "TEST 3/15: Client index.html relié exclusivement à /api
 # TEST 4 : Suppression de la modale et des contrôles de configuration client
 $hasConfigModal = ($htmlRaw -match "openConfigModal") -or ($htmlRaw -match 'id="configModal"')
 $isPass4 = (-not $hasConfigModal)
-Assert-Test -TestName "TEST 4/15: Suppression du bouton et de la modale client de config" `
+Assert-Test -TestName "TEST 4/18: Suppression du bouton et de la modale client de config" `
     -Condition $isPass4 `
     -Expected "Bouton et modale 'Configuration Sheets' purgés du frontend" `
     -Actual "Présence de configModal / openConfigModal: $hasConfigModal"
@@ -123,7 +123,7 @@ $missingQuestions = @()
         $missingQuestions += $qKey
     }
 }
-Assert-Test -TestName "TEST 5/15: Préservation intégrale des 46 questions du formulaire" `
+Assert-Test -TestName "TEST 5/18: Préservation intégrale des 46 questions du formulaire" `
     -Condition $allQuestionsFound `
     -Expected "Toutes les 46 questions (Q1 à Q46) présentes et câblées" `
     -Actual $(if ($allQuestionsFound) { "46/46 questions confirmées dans index.html" } else { "Questions manquantes: $($missingQuestions -join ', ')" })
@@ -133,7 +133,7 @@ $hasSilentAccumulation = $htmlRaw.Contains("saveResponseLocally")
 $hasDraftPurgeOnSuccess = $htmlRaw.Contains("localStorage.removeItem(STORAGE_KEY_DRAFT)")
 $hasResetForm = $htmlRaw.Contains("resetFormForNewRespondent")
 $isPass6 = (-not $hasSilentAccumulation) -and $hasDraftPurgeOnSuccess -and $hasResetForm
-Assert-Test -TestName "TEST 6/15: Protection de la vie privée (RGPD - localStorage minimisé)" `
+Assert-Test -TestName "TEST 6/18: Protection de la vie privée (RGPD - localStorage minimisé)" `
     -Condition $isPass6 `
     -Expected "Pas de stockage systématique des réponses personnelles, purge auto du draft après succès, reset pour nouvel utilisateur" `
     -Actual "Stockage systématique évité: $(!$hasSilentAccumulation) | Purge draft succès: $hasDraftPurgeOnSuccess | Reset nouvel utilisateur: $hasResetForm"
@@ -146,7 +146,7 @@ $hasSizeCheck = ($apiCode -match "MAX_PAYLOAD_BYTES")
 $hasHoneypot = ($apiCode -match "data\.website")
 $hasTimeout = ($apiCode -match "AbortController")
 $isPass7 = $hasMethodCheck -and $hasEnvCheck -and $hasSizeCheck -and $hasHoneypot -and $hasTimeout
-Assert-Test -TestName "TEST 7/15: Endpoint api/submit.js (Sécurité, validation & timeout)" `
+Assert-Test -TestName "TEST 7/18: Endpoint api/submit.js (Sécurité, validation & timeout)" `
     -Condition $isPass7 `
     -Expected "POST-only, check env var, limite taille (64 Ko), honeypot et timeout configurés" `
     -Actual "Method: $hasMethodCheck | Env: $hasEnvCheck | Size: $hasSizeCheck | Honeypot: $hasHoneypot | Timeout: $hasTimeout"
@@ -157,7 +157,7 @@ $checksIdMissingOrMismatch = ($apiCode -match "SUBMISSION_ID_MISSING") -and ($ap
 $checksUnconfirmedRecord = ($apiCode -match "UNCONFIRMED_RECORD")
 $returns200OnlyOnConfirmed = ($apiCode -match "res\.status\(200\)\.json")
 $isPass8 = $requiresSubIdInInput -and $checksIdMissingOrMismatch -and $checksUnconfirmedRecord -and $returns200OnlyOnConfirmed
-Assert-Test -TestName "TEST 8/15: api/submit.js : Exigence submission_id & confirmation stricte" `
+Assert-Test -TestName "TEST 8/18: api/submit.js : Exigence submission_id & confirmation stricte" `
     -Condition $isPass8 `
     -Expected "submission_id obligatoire en entrée, rejet strict si manquant/différent en sortie, row > 0 requis" `
     -Actual "ID obligatoire entrée: $requiresSubIdInInput | Rejet ID manquant/différent: $checksIdMissingOrMismatch | Rejet non certifié: $checksUnconfirmedRecord"
@@ -167,7 +167,7 @@ $codeGsRaw = Get-Content "Code.gs" -Raw
 $usesV2Sheet = ($codeGsRaw -match 'SHEET_NAME_V2 = "Reponses_Sondage_v2"')
 $hasMigration = ($codeGsRaw -match 'function migrateLegacyV1ToV2')
 $isPass9 = $usesV2Sheet -and $hasMigration
-Assert-Test -TestName "TEST 9/15: Protection du schéma : Écriture dans Reponses_Sondage_v2" `
+Assert-Test -TestName "TEST 9/18: Protection du schéma : Écriture dans Reponses_Sondage_v2" `
     -Condition $isPass9 `
     -Expected "Nouvel onglet v2 utilisé, onglet historique protégé, migrateLegacyV1ToV2() fourni" `
     -Actual "Onglet v2: $usesV2Sheet | migrateLegacyV1ToV2: $hasMigration"
@@ -177,7 +177,7 @@ $hasLockService = ($codeGsRaw -match "LockService\.getScriptLock")
 $checksColumnA = ($codeGsRaw -match "findSubmissionInSheet") -or ($codeGsRaw -match "findExistingRowById")
 $hasProbingRemoved = (-not ($codeGsRaw -match "action === .verify."))
 $isPass10 = $hasLockService -and $checksColumnA -and $hasProbingRemoved
-Assert-Test -TestName "TEST 10/15: Code.gs : Idempotence durable & Suppression du sondage public doGet" `
+Assert-Test -TestName "TEST 10/18: Code.gs : Idempotence durable & Suppression du sondage public doGet" `
     -Condition $isPass10 `
     -Expected "LockService présent, colonne A vérifiée, endpoint public doGet(?action=verify) supprimé" `
     -Actual "LockService: $hasLockService | Colonne A check: $checksColumnA | Probing supprimé: $hasProbingRemoved"
@@ -187,7 +187,7 @@ $vJsonRaw = Get-Content "vercel.json" -Raw
 $hasSecurityHeaders = ($vJsonRaw -match "X-Content-Type-Options") -and ($vJsonRaw -match "X-Frame-Options")
 $hasFunctionTimeout = ($vJsonRaw -match "maxDuration")
 $isPass11 = $hasSecurityHeaders -and $hasFunctionTimeout
-Assert-Test -TestName "TEST 11/15: Configuration vercel.json (Headers de sécurité & maxDuration)" `
+Assert-Test -TestName "TEST 11/18: Configuration vercel.json (Headers de sécurité & maxDuration)" `
     -Condition $isPass11 `
     -Expected "En-têtes de sécurité et maxDuration configurés" `
     -Actual "Security headers: $hasSecurityHeaders | maxDuration: $hasFunctionTimeout"
@@ -236,13 +236,54 @@ $valErrNom = Test-ApiValidation -data $badNomData
 $hasNomRejected = $valErrNom -contains "Le nom est obligatoire"
 
 $isPass12 = $hasIdRejected -and $hasEmailRejected -and $hasNomRejected
-Assert-Test -TestName "TEST 12/15: Validation métier unitaire de api/submit.js (Rejets stricts)" `
+Assert-Test -TestName "TEST 12/18: Validation métier unitaire de api/submit.js (Rejets stricts)" `
     -Condition $isPass12 `
     -Expected "Rejet strict si submission_id manquant, nom vide, ou email invalide" `
     -Actual "ID rejeté: $hasIdRejected | Email rejeté: $hasEmailRejected | Nom rejeté: $hasNomRejected"
 
 # ----------------------------------------------------------------------------
-# PARTIE 3 : TESTS D'INTÉGRATION E2E SUR BACKEND DE TEST DÉDIÉ
+# PARTIE 3 : TESTS DU DASHBOARD KPI (ANALYTIQUE & SÉCURITÉ)
+# ----------------------------------------------------------------------------
+
+# TEST 13 : Architecture & Sécurité du Dashboard KPI
+$dashHtmlExists = Test-Path "dashboard.html"
+$dashApiExists = Test-Path "api\dashboard.js"
+$dashVercelConfig = (Get-Content "vercel.json" -Raw).Contains('"api/dashboard.js"')
+$dashProtectedInGas = (Get-Content "Code.gs" -Raw).Contains('read_analytics')
+$isPass13 = $dashHtmlExists -and $dashApiExists -and $dashVercelConfig -and $dashProtectedInGas
+
+Assert-Test -TestName "TEST 13/18: Architecture & Sécurité du Dashboard KPI" `
+    -Condition $isPass13 `
+    -Expected "dashboard.html, api/dashboard.js, vercel.json et Code.gs configurés pour le dashboard" `
+    -Actual "dashboard.html: $dashHtmlExists | api/dashboard.js: $dashApiExists | vercel.json: $dashVercelConfig | Code.gs: $dashProtectedInGas"
+
+# TEST 14 : Exécution de la suite unitaire et analytique du Dashboard (10 tests)
+$nodeExe = "C:\laragon\bin\nodejs\node-v22\node.exe"
+$dashTestResult = $false
+$dashTestOutput = ""
+if (Test-Path $nodeExe) {
+    try {
+        $dashRun = & $nodeExe test_dashboard.js
+        if ($LASTEXITCODE -eq 0) {
+            $dashTestResult = $true
+            $dashTestOutput = "10/10 tests unitaires & analytiques réussis (Zéro PII, Auth 401, Déduplication, KPI, Calculs)"
+        } else {
+            $dashTestOutput = "Échec d'au moins un test unitaire dashboard"
+        }
+    } catch {
+        $dashTestOutput = "Exception lors de l'exécution: $_"
+    }
+} else {
+    $dashTestOutput = "Node.js non disponible au chemin standard"
+}
+
+Assert-Test -TestName "TEST 14/18: Tests Unitaires & Analytiques du Dashboard (test_dashboard.js)" `
+    -Condition $dashTestResult `
+    -Expected "10/10 tests réussis avec code de sortie 0" `
+    -Actual "$dashTestOutput"
+
+# ----------------------------------------------------------------------------
+# PARTIE 4 : TESTS D'INTÉGRATION E2E SUR BACKEND DE TEST DÉDIÉ
 # (STRICTEMENT ISOLÉS — DÉSACTIVÉS PAR DÉFAUT POUR PROTÉGER LA PRODUCTION)
 # ----------------------------------------------------------------------------
 
@@ -260,9 +301,10 @@ if (-not $AllowWriteTests) {
 }
 
 if (-not $canRunIntegration) {
-    Skip-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur environnement de test" -Reason $integrationSkipReason
-    Skip-Test -TestName "TEST 14/15: Vérification de l'idempotence et du non-dédoublement de ligne" -Reason $integrationSkipReason
-    Skip-Test -TestName "TEST 15/15: Concurrence réelle multi-utilisateurs sur 2 lignes distinctes" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 15/18: Intégration E2E via /api/submit sur environnement de test" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 16/18: Vérification de l'idempotence et du non-dédoublement de ligne" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 17/18: Concurrence réelle multi-utilisateurs sur 2 lignes distinctes" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 18/18: Intégration E2E Dashboard via /api/dashboard sur environnement de test" -Reason $integrationSkipReason
 } else {
     Write-Host "`n>>> EXÉCUTION DES TESTS D'ÉCRITURE SUR L'ENVIRONNEMENT DE TEST ISOLÉ <<<" -ForegroundColor Yellow
 
@@ -314,37 +356,37 @@ if (-not $canRunIntegration) {
         q23 = "Gestion automatique des stocks"
     }
 
-    # TEST 13 : Soumission E2E via contrat /api/submit
+    # TEST 15 : Soumission E2E via contrat /api/submit
     try {
         $resE2E = Invoke-VercelSubmitE2E -payloadObj $testPayload -gasTargetUrl $TestEndpointUrl -vercelUrl $VercelBaseUrl
-        $isPass13 = ($resE2E -ne $null) -and ($resE2E.status -eq "success") -and ($resE2E.row -gt 0) -and ($resE2E.submission_id -eq $testSubId)
-        Assert-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur backend de test" `
-            -Condition $isPass13 `
+        $isPass15 = ($resE2E -ne $null) -and ($resE2E.status -eq "success") -and ($resE2E.row -gt 0) -and ($resE2E.submission_id -eq $testSubId)
+        Assert-Test -TestName "TEST 15/18: Intégration E2E via /api/submit sur backend de test" `
+            -Condition $isPass15 `
             -Expected "status == 'success', row > 0, et submission_id confirmé identique" `
             -Actual "status = '$($resE2E.status)', row = '$($resE2E.row)', id = '$($resE2E.submission_id)'"
     } catch {
-        Assert-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur backend de test" `
+        Assert-Test -TestName "TEST 15/18: Intégration E2E via /api/submit sur backend de test" `
             -Condition $false `
             -Expected "status == 'success'" `
             -Actual "Exception: $_"
     }
 
-    # TEST 14 : Idempotence (Renvoi du même submission_id via /api/submit)
+    # TEST 16 : Idempotence (Renvoi du même submission_id via /api/submit)
     try {
         $resDup = Invoke-VercelSubmitE2E -payloadObj $testPayload -gasTargetUrl $TestEndpointUrl -vercelUrl $VercelBaseUrl
-        $isPass14 = ($resDup.status -eq "success") -and ($resDup.duplicate -eq $true) -and ($resDup.row -eq $resE2E.row)
-        Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence et du non-dédoublement de ligne" `
-            -Condition $isPass14 `
+        $isPass16 = ($resDup.status -eq "success") -and ($resDup.duplicate -eq $true) -and ($resDup.row -eq $resE2E.row)
+        Assert-Test -TestName "TEST 16/18: Vérification de l'idempotence et du non-dédoublement de ligne" `
+            -Condition $isPass16 `
             -Expected "duplicate == true et row == $($resE2E.row) (aucune nouvelle ligne créée)" `
             -Actual "duplicate = '$($resDup.duplicate)', row = '$($resDup.row)'"
     } catch {
-        Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence" `
+        Assert-Test -TestName "TEST 16/18: Vérification de l'idempotence" `
             -Condition $false `
             -Expected "duplicate == true" `
             -Actual "Exception: $_"
     }
 
-    # TEST 15 : Concurrence réelle multi-utilisateurs
+    # TEST 17 : Concurrence réelle multi-utilisateurs
     $cId1 = "conc_test1_" + [Guid]::NewGuid().ToString().Substring(0,6)
     $cId2 = "conc_test2_" + [Guid]::NewGuid().ToString().Substring(0,6)
     $p1 = @{ submission_id=$cId1; nom="ROBOT_CONC_1"; prenom="TEST"; email="bot1@example.invalid"; ville="TEST_VILLE"; consent_etude=$true } | ConvertTo-Json
@@ -358,15 +400,31 @@ if (-not $canRunIntegration) {
         $r2 = Receive-Job -Job $j2 -Wait
         Remove-Job -Job $j1, $j2
 
-        $isPass15 = ($r1.status -eq "success") -and ($r2.status -eq "success") -and ($r1.row -ne $r2.row)
-        Assert-Test -TestName "TEST 15/15: Concurrence réelle (Deux écritures simultanées sur 2 lignes distinctes)" `
-            -Condition $isPass15 `
+        $isPass17 = ($r1.status -eq "success") -and ($r2.status -eq "success") -and ($r1.row -ne $r2.row)
+        Assert-Test -TestName "TEST 17/18: Concurrence réelle (Deux écritures simultanées sur 2 lignes distinctes)" `
+            -Condition $isPass17 `
             -Expected "2 soumissions acceptées sur 2 lignes différentes" `
             -Actual "Job 1: row=$($r1.row) | Job 2: row=$($r2.row)"
     } catch {
-        Assert-Test -TestName "TEST 15/15: Concurrence réelle" `
+        Assert-Test -TestName "TEST 17/18: Concurrence réelle" `
             -Condition $false `
             -Expected "2 écritures sur 2 lignes distinctes" `
+            -Actual "Exception: $_"
+    }
+
+    # TEST 18 : Intégration E2E Dashboard via action=read_analytics
+    try {
+        $analyticsUrl = "$TestEndpointUrl?action=read_analytics&key=cm_sondage_analytics_secret_2026"
+        $rAnalytics = Invoke-RestMethod -Uri $analyticsUrl -Method Get -TimeoutSec 20
+        $isPass18 = ($rAnalytics.status -eq "success") -and ($rAnalytics.data.Count -gt 0)
+        Assert-Test -TestName "TEST 18/18: Lecture analytique sécurisée via action=read_analytics" `
+            -Condition $isPass18 `
+            -Expected "status == 'success' et au moins 1 ligne analytique retournée" `
+            -Actual "status = '$($rAnalytics.status)', count = '$($rAnalytics.data.Count)'"
+    } catch {
+        Assert-Test -TestName "TEST 18/18: Lecture analytique sécurisée" `
+            -Condition $false `
+            -Expected "status == 'success'" `
             -Actual "Exception: $_"
     }
 }

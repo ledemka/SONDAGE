@@ -260,19 +260,138 @@ function doPost(e) {
 }
 
 /**
- * Traitement des requêtes GET (Diagnostic technique & Health Check)
+ * Traitement des requêtes GET (Diagnostic technique, Health Check & Analytics sécurisé)
  * 
  * SÉCURITÉ & CONFIDENTIALITÉ :
- * La vérification publique par submission_id (?action=verify) a été supprimée
- * car elle n'est pas utilisée par le formulaire (qui communique exclusivement
- * avec l'endpoint serveur /api/submit) et exposait un risque de sondage
- * ou d'énumération par un tiers des identifiants enregistrés.
+ * 1. Health check public sans exposition de données.
+ * 2. Endpoint analytique (?action=read_analytics) strictement protégé par une clé secrète
+ *    (DASHBOARD_API_KEY).
+ * 3. ANONYMISATION STRICTE À LA SOURCE : Les colonnes Nom, Prénom et Email sont
+ *    systématiquement purgées et NE SORTENT JAMAIS de Google Sheets vers le Dashboard.
  */
+const DEFAULT_ANALYTICS_SECRET = "cm_sondage_analytics_secret_2026";
+
+function getAnalyticsSecret() {
+  const prop = PropertiesService.getScriptProperties().getProperty("DASHBOARD_API_KEY");
+  return prop ? prop.trim() : DEFAULT_ANALYTICS_SECRET;
+}
+
 function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action).trim() : "";
+
+  // 1. Endpoint Analytique Sécurisé pour le Dashboard
+  if (action === "read_analytics") {
+    const providedKey = (e.parameter && e.parameter.key) ? String(e.parameter.key).trim() : "";
+    const expectedKey = getAnalyticsSecret();
+
+    if (!providedKey || providedKey !== expectedKey) {
+      return jsonResponse({
+        status: "error",
+        code: "UNAUTHORIZED",
+        message: "Accès refusé. Clé d'API analytique invalide ou manquante."
+      }, 401);
+    }
+
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(SHEET_NAME_V2);
+      
+      if (!sheet || sheet.getLastRow() <= 1) {
+        return jsonResponse({
+          status: "success",
+          count: 0,
+          timestamp: new Date().toISOString(),
+          data: []
+        });
+      }
+
+      const lastRow = sheet.getLastRow();
+      const lastCol = Math.min(sheet.getLastColumn(), HEADERS_V2.length);
+      const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+      const sanitizedRows = [];
+      for (let i = 0; i < values.length; i++) {
+        const row = values[i];
+        const subId = String(row[0] || "").trim();
+        if (!subId) continue; // Ignorer les lignes vides
+
+        // Mapping sans PII : Colonnes 2 (Nom), 3 (Prénom) et 4 (Email) sont EXCLUES
+        sanitizedRows.push({
+          submission_id: subId,
+          timestamp: row[1] ? new Date(row[1]).toISOString() : "",
+          ville: String(row[5] || ""),
+          consent_marketing: String(row[6] || ""),
+          q1: String(row[7] || ""),
+          q2: String(row[8] || ""),
+          q3: String(row[9] || ""),
+          q4: String(row[10] || ""),
+          q5: String(row[11] || ""),
+          q6: String(row[12] || ""),
+          q7: String(row[13] || ""),
+          q8: String(row[14] || ""),
+          q9: String(row[15] || ""),
+          q10: String(row[16] || ""),
+          q11: String(row[17] || ""),
+          q12: String(row[18] || ""),
+          q13: String(row[19] || ""),
+          q14: String(row[20] || ""),
+          q15: String(row[21] || ""),
+          q16: String(row[22] || ""),
+          q17: String(row[23] || ""),
+          q18: String(row[24] || ""),
+          q19: String(row[25] || ""),
+          q20: String(row[26] || ""),
+          q21: String(row[27] || ""),
+          q22: String(row[28] || ""),
+          q23: String(row[29] || ""),
+          q24: String(row[30] || ""),
+          q25: String(row[31] || ""),
+          q26: String(row[32] || ""),
+          q27: String(row[33] || ""),
+          q28: String(row[34] || ""),
+          q29: String(row[35] || ""),
+          q30: String(row[36] || ""),
+          q31: String(row[37] || ""),
+          q32: String(row[38] || ""),
+          q33: String(row[39] || ""),
+          q34: String(row[40] || ""),
+          q35: String(row[41] || ""),
+          q36: String(row[42] || ""),
+          q37: String(row[43] || ""),
+          q38: String(row[44] || ""),
+          q39: String(row[45] || ""),
+          q40: String(row[46] || ""),
+          q41: String(row[47] || ""),
+          q42: String(row[48] || ""),
+          q43: String(row[49] || ""),
+          q44: String(row[50] || ""),
+          q45: String(row[51] || ""),
+          q46: String(row[52] || "")
+        });
+      }
+
+      return jsonResponse({
+        status: "success",
+        count: sanitizedRows.length,
+        timestamp: new Date().toISOString(),
+        data: sanitizedRows
+      });
+
+    } catch (err) {
+      Logger.log("Erreur lecture analytics : " + err.toString());
+      return jsonResponse({
+        status: "error",
+        code: "ANALYTICS_READ_ERROR",
+        message: "Impossible d'extraire les données analytiques de la feuille : " + err.toString()
+      }, 500);
+    }
+  }
+
+  // 2. Diagnostic standard (Health Check)
   return jsonResponse({
     status: "online",
     service: "Enquête Marché Cameroun — API de synchronisation",
-    version: "2.1.0",
+    version: "2.2.0",
     schema_version: "v2",
     columns_count: HEADERS_V2.length,
     active_sheet: SHEET_NAME_V2,
