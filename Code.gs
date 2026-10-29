@@ -247,6 +247,7 @@ function doPost(e) {
     return jsonResponse({
       status: "success",
       submission_id: submissionId,
+      duplicate: false,
       timestamp: serverTimestamp,
       row: sheet.getLastRow(),
       message: "Réponse enregistrée avec succès dans Google Sheets."

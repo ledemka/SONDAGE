@@ -1,6 +1,6 @@
 # Guide de Déploiement Google Apps Script & Sécurisation (Vercel Backend)
 
-Ce guide détaille la mise en production du backend Google Apps Script pour l'enquête auprès des commerçants camerounais, la sécurisation de la feuille Google Sheets et la configuration de la variable d'environnement sur Vercel.
+Ce guide détaille la mise en production du backend Google Apps Script pour l'enquête auprès des commerçants camerounais, la sécurisation de la feuille Google Sheets, la mise en place d'un environnement de test isolé et la configuration des variables d'environnement sur Vercel.
 
 ---
 
@@ -16,37 +16,57 @@ Ce guide détaille la mise en production du backend Google Apps Script pour l'en
 
 ---
 
-## 1. Mise à Jour Obligatoire du Script sur Google Sheets
+## 1. Mise à Jour Obligatoire du Script sur la Feuille de Production
 
-Votre feuille Google Sheets est accessible à l'adresse suivante :  
-👉 **[Accéder à votre feuille Google Sheets](https://docs.google.com/spreadsheets/d/1wIJ0RLxRCmD1di1JUR0L7ne52BiFUsa69RzKPuKM7Y4/edit?usp=sharing)**
+Votre feuille Google Sheets de production est accessible à l'adresse suivante :  
+👉 **[Accéder à votre feuille Google Sheets de Production](https://docs.google.com/spreadsheets/d/1wIJ0RLxRCmD1di1JUR0L7ne52BiFUsa69RzKPuKM7Y4/edit?usp=sharing)**
 
 ### Étape 1 : Remplacer le code dans Apps Script
 1. Ouvrez votre feuille Google Sheets.
 2. Cliquez sur le menu **Extensions** > **Apps Script**.
-3. Sélectionnez l'intégralité du code dans l'éditeur (`Code.gs`) et supprimez-le.
+3. Sélectionnez l'intégralité du code existant dans l'éditeur (`Code.gs`) et supprimez-le.
 4. Ouvrez le fichier **[`Code.gs`](file:///c:/Users/User/Documents/Antigravity/ENQUETTE%20MARCHE/Code.gs)** de ce projet.
 5. Copiez l'intégralité de son contenu et collez-le dans l'éditeur Google Apps Script.
 6. Cliquez sur l'icône **Enregistrer** (disquette) ou tapez `Ctrl + S`.
 
 ### Étape 2 : Publier une NOUVELLE VERSION du déploiement
 > [!IMPORTANT]
-> Modifier le code dans l'éditeur Google Apps Script ne met **pas** à jour l'application web en ligne automatiquement. Il est obligatoire de publier une **« Nouvelle version »**.
+> Modifier le code dans l'éditeur Google Apps Script ne met **pas** à jour l'application web en ligne automatiquement. Il est indispensable de publier une **« Nouvelle version »**.
 
 1. En haut à droite de l'éditeur Apps Script, cliquez sur **Déployer** > **Gérer les déploiements** (Manage deployments).
 2. Cliquez sur l'icône **Crayon ✏️ (Modifier)** en haut à droite.
 3. Dans la liste déroulante **Version**, sélectionnez : **« Nouvelle version »** (New version).
-4. Description : `Version 2.1 - Vercel Relay, Reponses_Sondage_v2, LockService`.
-5. Vérifiez les paramètres de sécurité :
+4. Description : `Version 2.1 - Vercel Relay, Reponses_Sondage_v2, LockService, Strict Idempotence`.
+5. Vérifiez les paramètres d'accès :
    - **Exécuter en tant que :** `Moi (<votre email>)`
    - **Qui a accès :** **`Tous les utilisateurs`** (Anyone)
 6. Cliquez sur **Déployer**.
-7. L'URL Web App reste identique :  
+7. L'URL Web App de production reste identique :  
    `https://script.google.com/macros/s/AKfycbxpGZ9YZ3V6SrOzGP-WuTAysm6XTi4z20ri15qnEi8UbXTMRQlQtP9QdyFmDcLHl3H3/exec`
 
 ---
 
-## 2. Configuration de la Variable d'Environnement sur Vercel
+## 2. Création d'un Environnement de Test Isolé (Optionnel)
+
+Pour tester des écritures automatisées sans jamais polluer la feuille de production :
+
+1. Dans Google Drive, créez une **nouvelle feuille Google Sheets** vierge nommée `Enquete_Marche_TEST`.
+2. Ouvrez cette feuille > **Extensions** > **Apps Script**.
+3. Collez-y le contenu de [`Code.gs`](file:///c:/Users/User/Documents/Antigravity/ENQUETTE%20MARCHE/Code.gs).
+4. Cliquez sur **Déployer** > **Nouveau déploiement** > Type : **Application Web**.
+5. Paramètres :
+   - Description : `Environnement de Test Isolé`
+   - Exécuter en tant que : `Moi`
+   - Qui a accès : `Tous les utilisateurs`
+6. Copiez l'URL Web App générée (qui aura un identifiant différent de la production).
+7. Lancez la suite de tests d'écriture sur cette URL isolée :
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\test_suite.ps1 -AllowWriteTests -TestEndpointUrl "https://script.google.com/macros/s/VOTRE_URL_DE_TEST/exec"
+   ```
+
+---
+
+## 3. Configuration de la Variable d'Environnement sur Vercel
 
 Sur Vercel, l'URL du script n'est jamais exposée au navigateur : elle est lue par la Serverless Function `api/submit.js`.
 
@@ -61,26 +81,11 @@ Sur Vercel, l'URL du script n'est jamais exposée au navigateur : elle est lue p
 
 ---
 
-## 3. Schéma des Données & Protection Historique
-
-### Onglet `Reponses_Sondage_v2`
-Pour ne pas altérer les réponses collectées avec les anciennes versions du formulaire :
-- Le script crée et écrit automatiquement dans un nouvel onglet intitulé **`Reponses_Sondage_v2`**.
-- L'ancien onglet `Reponses_Sondage` reste préservé tel quel.
-
-### Procédure de Migration Historique (Optionnelle)
-Si vous souhaitez migrer les anciennes réponses v1 vers la structure v2 :
-1. Dans l'éditeur Google Apps Script, sélectionnez la fonction `migrateLegacyV1ToV2` dans la barre d'outils supérieure.
-2. Cliquez sur **Exécuter** (Run).
-3. La fonction lira les anciennes lignes, appliquera les valeurs par défaut pour les nouvelles colonnes, et les copiera dans `Reponses_Sondage_v2` sans altérer l'onglet initial.
-
----
-
-## 4. Schéma Officiel des 53 Colonnes (A à BA)
+## 4. Schéma des 53 Colonnes (Onglet `Reponses_Sondage_v2`)
 
 | Colonne | En-tête | Description & Type |
 |---|---|---|
-| **A** | `Submission_ID` | UUID unique généré pour l'idempotence et l'anti-doublon |
+| **A** | `Submission_ID` | UUID unique pour l'idempotence et l'anti-doublon |
 | **B** | `Timestamp_Serveur` | Horodatage certifié par Google Apps Script (ISO 8601) |
 | **C** | `Nom` | Nom du commerçant (Obligatoire) |
 | **D** | `Prénom` | Prénom du commerçant (Obligatoire) |

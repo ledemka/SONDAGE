@@ -7,6 +7,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Archives
+*.zip
+
 # Fichiers système et logs
 *.log
 .DS_Store

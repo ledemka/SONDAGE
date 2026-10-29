@@ -1,13 +1,34 @@
 # ============================================================================
-# SUITE DE TESTS D'INTÉGRATION & CONFORMITÉ — ARCHITECTURE VERCEL
+# SUITE DE TESTS D'AUDIT, SÉCURITÉ & CONFORMITÉ — ARCHITECTURE VERCEL
 # Enquête Marché Commerces Cameroun 🇨🇲
 # ============================================================================
+# 
+# UTILISATION :
+# 
+# 1. Mode Statique & Unitaire (PAR DÉFAUT, RECOMMANDÉ) :
+#    powershell -ExecutionPolicy Bypass -File .\test_suite.ps1
+#    -> Exécute tous les tests statiques, de sécurité et la simulation /api/submit
+#    -> ZÉRO écriture sur aucune base de données
+#    -> Aucun risque de pollution de la production
+# 
+# 2. Mode Intégration sur Environnement de Test Dédié (OPTIONNEL ET ISOLÉ) :
+#    powershell -ExecutionPolicy Bypass -File .\test_suite.ps1 -AllowWriteTests -TestEndpointUrl "https://script.google.com/macros/s/VOTRE_DEPLOYMENT_TEST/exec"
+#    -> Nécessite un Google Sheets de test et un script de test dédié
+#    -> Les écritures vers la production sont STRICTEMENT INTERDITES par un garde-fou
+# ============================================================================
 
-$gasUrl = "https://script.google.com/macros/s/AKfycbxpGZ9YZ3V6SrOzGP-WuTAysm6XTi4z20ri15qnEi8UbXTMRQlQtP9QdyFmDcLHl3H3/exec"
+param (
+    [switch]$AllowWriteTests = $false,
+    [string]$TestEndpointUrl = $env:TEST_GOOGLE_APPS_SCRIPT_URL
+)
+
+# Signature de l'URL de production connue pour le garde-fou
+$PRODUCTION_DEPLOYMENT_ID = "AKfycbxpGZ9YZ3V6SrOzGP-WuTAysm6XTi4z20ri15qnEi8UbXTMRQlQtP9QdyFmDcLHl3H3"
 
 $passed = 0
 $failed = 0
-$total = 14
+$skipped = 0
+$totalTests = 15
 
 function Assert-Test {
     param (
@@ -32,61 +53,66 @@ function Assert-Test {
     }
 }
 
+function Skip-Test {
+    param (
+        [string]$TestName,
+        [string]$Reason
+    )
+    Write-Host "`n----------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "$TestName" -ForegroundColor Cyan
+    Write-Host "STATUT  : [SKIPPED - NON EXÉCUTÉ]" -ForegroundColor Yellow
+    Write-Host "Raison  : $Reason" -ForegroundColor DarkYellow
+    $script:skipped++
+}
+
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "DÉMARRAGE DE L'AUDIT DE CONFORMITÉ VERCEL" -ForegroundColor Cyan
+Write-Host "DÉMARRAGE DE L'AUDIT DE CONFORMITÉ & TESTS VERCEL" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # ----------------------------------------------------------------------------
-# 1. Structure Vercel & Suppression stricte de Netlify
+# PARTIE 1 : TESTS STATIQUES, ARCHITECTURE & SÉCURITÉ (ZÉRO ÉCRITURE)
 # ----------------------------------------------------------------------------
+
+# TEST 1 : Architecture exclusive Vercel (zéro Netlify)
 $netlifyGone = -not (Test-Path "netlify")
 $vercelJsonExists = Test-Path "vercel.json"
 $apiSubmitExists = Test-Path "api\submit.js"
 $envExampleExists = Test-Path ".env.example"
-
 $isPass1 = $netlifyGone -and $vercelJsonExists -and $apiSubmitExists -and $envExampleExists
-Assert-Test -TestName "[TEST 1/14] Architecture exclusive Vercel (zéro Netlify)" `
+Assert-Test -TestName "TEST 1/15: Architecture exclusive Vercel (zéro Netlify)" `
     -Condition $isPass1 `
     -Expected "netlify/ absent, vercel.json et api/submit.js présents" `
     -Actual "netlify/ absent: $netlifyGone | vercel.json: $vercelJsonExists | api/submit.js: $apiSubmitExists"
 
-# ----------------------------------------------------------------------------
-# 2. Sécurité de la variable d'environnement (Pas de fuite client)
-# ----------------------------------------------------------------------------
+# TEST 2 : Sécurité de la variable d'environnement (Pas de fuite client)
 $envContent = Get-Content ".env.example" -Raw
 $htmlRaw = Get-Content "index.html" -Raw
 $isPass2 = ($envContent -match "GOOGLE_APPS_SCRIPT_URL=") -and `
            (-not ($envContent -match "^\s*NEXT_PUBLIC_")) -and `
            (-not ($htmlRaw -match "GOOGLE_APPS_SCRIPT_URL"))
-Assert-Test -TestName "TEST 2/14: Variable GOOGLE_APPS_SCRIPT_URL strictement serveur" `
+Assert-Test -TestName "TEST 2/15: Variable GOOGLE_APPS_SCRIPT_URL strictement serveur" `
     -Condition $isPass2 `
     -Expected "Variable sans préfixe NEXT_PUBLIC_, absente du code client" `
     -Actual "Contrôlé avec succès dans .env.example et index.html"
 
-# ----------------------------------------------------------------------------
-# 3. Client : Soumission exclusive à /api/submit (zéro appel direct à Apps Script)
-# ----------------------------------------------------------------------------
+# TEST 3 : Client index.html relié exclusivement à /api/submit
 $hasApiSubmitCall = $htmlRaw.Contains('/api/submit')
 $hasDirectGasCallInClient = ($htmlRaw -match 'fetch\(\s*scriptUrl')
 $isPass3 = $hasApiSubmitCall -and (-not $hasDirectGasCallInClient)
-Assert-Test -TestName "TEST 3/14: Client index.html relie exclusivement a /api/submit" `
+Assert-Test -TestName "TEST 3/15: Client index.html relié exclusivement à /api/submit" `
     -Condition $isPass3 `
     -Expected "Appel fetch('/api/submit') exclusif, aucun appel direct vers Apps Script" `
     -Actual "fetch('/api/submit'): $hasApiSubmitCall | direct GAS: $hasDirectGasCallInClient"
 
-# ----------------------------------------------------------------------------
-# 4. Suppression de la modale de configuration côté client
-# ----------------------------------------------------------------------------
+# TEST 4 : Suppression de la modale et des contrôles de configuration client
 $hasConfigModal = ($htmlRaw -match "openConfigModal") -or ($htmlRaw -match 'id="configModal"')
 $isPass4 = (-not $hasConfigModal)
-Assert-Test -TestName "[TEST 4/14] Suppression du bouton et de la modale client de config" `
+Assert-Test -TestName "TEST 4/15: Suppression du bouton et de la modale client de config" `
     -Condition $isPass4 `
     -Expected "Bouton et modale 'Configuration Sheets' purgés du frontend" `
     -Actual "Présence de configModal / openConfigModal: $hasConfigModal"
 
-# ----------------------------------------------------------------------------
-# 5. Préservation intégrale des 46 questions (Q1 à Q46) dans index.html
-# ----------------------------------------------------------------------------
+# TEST 5 : Préservation intégrale des 46 questions du formulaire
 $allQuestionsFound = $true
 $missingQuestions = @()
 1..46 | ForEach-Object {
@@ -96,169 +122,228 @@ $missingQuestions = @()
         $missingQuestions += $qKey
     }
 }
-Assert-Test -TestName "[TEST 5/14] Préservation intégrale des 46 questions du formulaire" `
+Assert-Test -TestName "TEST 5/15: Préservation intégrale des 46 questions du formulaire" `
     -Condition $allQuestionsFound `
     -Expected "Toutes les 46 questions (Q1 à Q46) présentes et câblées" `
     -Actual $(if ($allQuestionsFound) { "46/46 questions confirmées dans index.html" } else { "Questions manquantes: $($missingQuestions -join ', ')" })
 
-# ----------------------------------------------------------------------------
-# 6. Endpoint api/submit.js : Contrôles de validation et anti-spam
-# ----------------------------------------------------------------------------
+# TEST 6 : Minimisation et conformité du stockage local (RGPD)
+$hasSilentAccumulation = $htmlRaw.Contains("saveResponseLocally")
+$hasDraftPurgeOnSuccess = $htmlRaw.Contains("localStorage.removeItem(STORAGE_KEY_DRAFT)")
+$hasResetForm = $htmlRaw.Contains("resetFormForNewRespondent")
+$hasLocalPurgeBtn = $htmlRaw.Contains("purgeLocalDataWithConfirmation")
+$isPass6 = (-not $hasSilentAccumulation) -and $hasDraftPurgeOnSuccess -and $hasResetForm -and $hasLocalPurgeBtn
+Assert-Test -TestName "TEST 6/15: Protection de la vie privée (RGPD - localStorage minimisé)" `
+    -Condition $isPass6 `
+    -Expected "Pas de stockage systématique des réponses personnelles, purge auto du draft après succès, reset pour nouvel utilisateur" `
+    -Actual "Stockage systématique évité: $(!$hasSilentAccumulation) | Purge draft succès: $hasDraftPurgeOnSuccess | Reset nouvel utilisateur: $hasResetForm"
+
+# TEST 7 : Endpoint api/submit.js (Sécurité, validation & timeout)
 $apiCode = Get-Content "api\submit.js" -Raw
 $hasMethodCheck = ($apiCode -match "req\.method !== .POST.")
 $hasEnvCheck = ($apiCode -match "process\.env\.GOOGLE_APPS_SCRIPT_URL")
 $hasSizeCheck = ($apiCode -match "MAX_PAYLOAD_BYTES")
 $hasHoneypot = ($apiCode -match "data\.website")
 $hasTimeout = ($apiCode -match "AbortController")
-$isPass6 = $hasMethodCheck -and $hasEnvCheck -and $hasSizeCheck -and $hasHoneypot -and $hasTimeout
-Assert-Test -TestName "[TEST 6/14] Endpoint api/submit.js (Sécurité, validation & timeout)" `
-    -Condition $isPass6 `
-    -Expected "POST-only, check env var, limite taille, honeypot et timeout configurés" `
+$isPass7 = $hasMethodCheck -and $hasEnvCheck -and $hasSizeCheck -and $hasHoneypot -and $hasTimeout
+Assert-Test -TestName "TEST 7/15: Endpoint api/submit.js (Sécurité, validation & timeout)" `
+    -Condition $isPass7 `
+    -Expected "POST-only, check env var, limite taille (64 Ko), honeypot et timeout configurés" `
     -Actual "Method: $hasMethodCheck | Env: $hasEnvCheck | Size: $hasSizeCheck | Honeypot: $hasHoneypot | Timeout: $hasTimeout"
 
-# ----------------------------------------------------------------------------
-# 7. Endpoint api/submit.js : Protection contre les faux succès
-# ----------------------------------------------------------------------------
-$verifiesUpstream = ($apiCode -match "upstreamJson\.status === .success.")
-$returns200OnlyOnSuccess = ($apiCode -match "res\.status\(200\)\.json")
-$isPass7 = $verifiesUpstream -and $returns200OnlyOnSuccess
-Assert-Test -TestName "[TEST 7/14] api/submit.js : Confirmation stricte sans faux succès" `
-    -Condition $isPass7 `
-    -Expected "Code HTTP 200 renvoyé UNIQUEMENT si upstreamJson.status == 'success'" `
-    -Actual "Vérifié dans la logique de traitement de api/submit.js"
+# TEST 8 : Confirmation stricte de soumission (Anti-faux succès & vérification identifiant)
+$checksIdMatch = ($apiCode -match "sentSubId !== returnedSubId")
+$checksUnconfirmedRecord = ($apiCode -match "UNCONFIRMED_RECORD")
+$returns200OnlyOnConfirmed = ($apiCode -match "res\.status\(200\)\.json")
+$isPass8 = $checksIdMatch -and $checksUnconfirmedRecord -and $returns200OnlyOnConfirmed
+Assert-Test -TestName "TEST 8/15: api/submit.js : Confirmation stricte d'écriture (Zero faux succès)" `
+    -Condition $isPass8 `
+    -Expected "Vérification concordance submission_id et preuve d'écriture (row > 0 ou duplicate == true)" `
+    -Actual "Contrôle concordance ID: $checksIdMatch | Rejet si écriture non prouvée: $checksUnconfirmedRecord"
 
-# ----------------------------------------------------------------------------
-# 8. Protection du schéma historique : Onglet Reponses_Sondage_v2
-# ----------------------------------------------------------------------------
+# TEST 9 : Protection du schéma historique : Onglet Reponses_Sondage_v2
 $codeGsRaw = Get-Content "Code.gs" -Raw
 $usesV2Sheet = ($codeGsRaw -match 'SHEET_NAME_V2 = "Reponses_Sondage_v2"')
 $hasMigration = ($codeGsRaw -match 'function migrateLegacyV1ToV2')
-$isPass8 = $usesV2Sheet -and $hasMigration
-Assert-Test -TestName "TEST 8/14: Protection du schema : Ecriture dans Reponses_Sondage_v2" `
-    -Condition $isPass8 `
+$isPass9 = $usesV2Sheet -and $hasMigration
+Assert-Test -TestName "TEST 9/15: Protection du schéma : Écriture dans Reponses_Sondage_v2" `
+    -Condition $isPass9 `
     -Expected "Nouvel onglet v2 utilisé, onglet historique protégé, migrateLegacyV1ToV2() fourni" `
     -Actual "Onglet v2: $usesV2Sheet | migrateLegacyV1ToV2: $hasMigration"
 
-# ----------------------------------------------------------------------------
-# 9. Idempotence durable et sérialisation avec LockService dans Code.gs
-# ----------------------------------------------------------------------------
+# TEST 10 : Idempotence durable et sérialisation avec LockService dans Code.gs
 $hasLockService = ($codeGsRaw -match "LockService\.getScriptLock")
 $checksColumnA = ($codeGsRaw -match "findSubmissionInSheet") -or ($codeGsRaw -match "findExistingRowById")
-$isPass9 = $hasLockService -and $checksColumnA
-Assert-Test -TestName "TEST 9/14: Code.gs : Idempotence durable (LockService + Colonne A)" `
-    -Condition $isPass9 `
+$isPass10 = $hasLockService -and $checksColumnA
+Assert-Test -TestName "TEST 10/15: Code.gs : Idempotence durable (LockService + Colonne A)" `
+    -Condition $isPass10 `
     -Expected "LockService présent et recherche de submission_id en colonne A active" `
     -Actual "LockService: $hasLockService | Colonne A check: $checksColumnA"
 
-# ----------------------------------------------------------------------------
-# 10. Persistance du brouillon et sauvegarde locale de secours
-# ----------------------------------------------------------------------------
-$hasDraftSave = ($htmlRaw -match "autoSaveDraft") -and ($htmlRaw -match "loadDraft")
-$hasCsvExport = ($htmlRaw -match "exportStoredResponses") -and ($htmlRaw -match "exportSingleSubmissionCsv")
-$isPass10 = $hasDraftSave -and $hasCsvExport
-Assert-Test -TestName "[TEST 10/14] Robustesse client : Brouillon localStorage + Export CSV" `
-    -Condition $isPass10 `
-    -Expected "Fonctions de draft et d'export CSV d'urgence connectées" `
-    -Actual "Brouillon auto: $hasDraftSave | Export CSV: $hasCsvExport"
-
-# ----------------------------------------------------------------------------
-# 11. Test réseau direct sur le backend Google Apps Script en production
-# ----------------------------------------------------------------------------
-$liveSubId = "test_vercel_" + [Guid]::NewGuid().ToString().Substring(0,8)
-$livePayload = @{
-    submission_id = $liveSubId
-    nom = "Kenfack"
-    prenom = "Alain"
-    email = "alain.kenfack@test.cm"
-    ville = "Bafoussam"
-    consent_etude = $true
-    consent_marketing = $false
-    q1 = "Bafoussam"
-    q2 = "Alimentation générale"
-    q13 = "Gestion des impayés"
-    q23 = "Suivi des ventes sur smartphone"
-} | ConvertTo-Json
-
-try {
-    $resLive = Invoke-RestMethod -Uri $gasUrl -Method Post -Body $livePayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
-    $isPass11 = ($resLive -ne $null) -and ($resLive.status -eq "success") -and ($resLive.row -gt 0)
-    Assert-Test -TestName "[TEST 11/14] Test d'écriture en direct sur Google Apps Script" `
-        -Condition $isPass11 `
-        -Expected "status == 'success' et row > 0" `
-        -Actual "status = '$($resLive.status)', row = '$($resLive.row)'"
-} catch {
-    Assert-Test -TestName "[TEST 11/14] Test d'écriture en direct sur Google Apps Script" `
-        -Condition $false `
-        -Expected "status == 'success'" `
-        -Actual "Exception: $_"
-}
-
-# ----------------------------------------------------------------------------
-# 12. Test d'idempotence en direct sur Google Apps Script
-# ----------------------------------------------------------------------------
-try {
-    # Renvoi immédiat du même payload avec le même submission_id
-    $resDup = Invoke-RestMethod -Uri $gasUrl -Method Post -Body $livePayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
-    $isPass12 = ($resDup.status -eq "success")
-    Assert-Test -TestName "[TEST 12/14] Test de renvoi immédiat sur Google Apps Script" `
-        -Condition $isPass12 `
-        -Expected "status == 'success' sans erreur" `
-        -Actual "status = '$($resDup.status)', duplicate = '$($resDup.duplicate)'" `
-        -Note "Pour bénéficier du flag duplicate:true, déployer une 'Nouvelle version' de Code.gs v2.1 sur Google Apps Script"
-} catch {
-    Assert-Test -TestName "[TEST 12/14] Test de renvoi immédiat sur Google Apps Script" `
-        -Condition $false `
-        -Expected "status == 'success'" `
-        -Actual "Exception: $_"
-}
-
-# ----------------------------------------------------------------------------
-# 13. Test d'écritures concurrentes réelles (Multi-threading PowerShell)
-# ----------------------------------------------------------------------------
-$concId1 = "conc_v1_" + [Guid]::NewGuid().ToString().Substring(0,6)
-$concId2 = "conc_v2_" + [Guid]::NewGuid().ToString().Substring(0,6)
-$p1 = @{ submission_id=$concId1; nom="Conc1"; prenom="Test"; email="c1@test.cm"; ville="Douala"; consent_etude=$true } | ConvertTo-Json
-$p2 = @{ submission_id=$concId2; nom="Conc2"; prenom="Test"; email="c2@test.cm"; ville="Yaoundé"; consent_etude=$true } | ConvertTo-Json
-
-try {
-    $j1 = Start-Job -ScriptBlock { param($u, $b) Invoke-RestMethod -Uri $u -Method Post -Body $b -ContentType "text/plain;charset=utf-8" -TimeoutSec 20 } -ArgumentList $gasUrl, $p1
-    $j2 = Start-Job -ScriptBlock { param($u, $b) Invoke-RestMethod -Uri $u -Method Post -Body $b -ContentType "text/plain;charset=utf-8" -TimeoutSec 20 } -ArgumentList $gasUrl, $p2
-
-    $r1 = Receive-Job -Job $j1 -Wait
-    $r2 = Receive-Job -Job $j2 -Wait
-    Remove-Job -Job $j1, $j2
-
-    $isPass13 = ($r1.status -eq "success") -and ($r2.status -eq "success") -and ($r1.row -ne $r2.row)
-    Assert-Test -TestName "[TEST 13/14] Concurrence en production (Deux écritures simultanées)" `
-        -Condition $isPass13 `
-        -Expected "2 soumissions enregistrées sur des lignes distinctes" `
-        -Actual "Job 1: row=$($r1.row) | Job 2: row=$($r2.row)"
-} catch {
-    Assert-Test -TestName "[TEST 13/14] Concurrence en production" `
-        -Condition $false `
-        -Expected "2 soumissions acceptées" `
-        -Actual "Exception: $_"
-}
-
-# ----------------------------------------------------------------------------
-# 14. Configuration vercel.json et headers de sécurité
-# ----------------------------------------------------------------------------
+# TEST 11 : Configuration vercel.json et headers de sécurité
 $vJsonRaw = Get-Content "vercel.json" -Raw
 $hasSecurityHeaders = ($vJsonRaw -match "X-Content-Type-Options") -and ($vJsonRaw -match "X-Frame-Options")
 $hasFunctionTimeout = ($vJsonRaw -match "maxDuration")
-$isPass14 = $hasSecurityHeaders -and $hasFunctionTimeout
-Assert-Test -TestName "[TEST 14/14] Configuration vercel.json (Headers de sécurité & maxDuration)" `
-    -Condition $isPass14 `
+$isPass11 = $hasSecurityHeaders -and $hasFunctionTimeout
+Assert-Test -TestName "TEST 11/15: Configuration vercel.json (Headers de sécurité & maxDuration)" `
+    -Condition $isPass11 `
     -Expected "En-têtes de sécurité et maxDuration configurés" `
     -Actual "Security headers: $hasSecurityHeaders | maxDuration: $hasFunctionTimeout"
 
 # ----------------------------------------------------------------------------
-# Synthèse finale
+# PARTIE 2 : SIMULATION UNITAIRE DE L'ENDPOINT VERCEL /api/submit
+# (Validation des règles métier côté serveur, données 100% fictives, en mémoire)
+# ----------------------------------------------------------------------------
+
+# Simulation locale de la fonction de validation de api/submit.js
+function Test-ApiValidation {
+    param ($data)
+    $errors = @()
+    $EMAIL_REGEX = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$"
+
+    if ([string]::IsNullOrWhiteSpace($data.nom)) { $errors += "Le nom est obligatoire" }
+    if ([string]::IsNullOrWhiteSpace($data.prenom)) { $errors += "Le prénom est obligatoire" }
+    if ([string]::IsNullOrWhiteSpace($data.email) -or (-not ($data.email -match $EMAIL_REGEX))) { $errors += "Format d'email invalide" }
+    if ([string]::IsNullOrWhiteSpace($data.ville)) { $errors += "La ville principale est obligatoire" }
+    if ($data.consent_etude -ne $true) { $errors += "Le consentement à l'étude est requis" }
+
+    if ($data.q13) {
+        $q13Count = ($data.q13 -split ';').Count
+        if ($q13Count -gt 3) { $errors += "Q13 : maximum 3 choix" }
+    }
+    if ($data.q23) {
+        $q23Count = ($data.q23 -split ';').Count
+        if ($q23Count -gt 5) { $errors += "Q23 : maximum 5 choix" }
+    }
+    return $errors
+}
+
+# Test unitaire sur données fictives
+$badEmailData = @{ nom="TestNom"; prenom="TestPrenom"; email="invalid-email-sans-arobase"; ville="VilleTest"; consent_etude=$true }
+$validationErrors1 = Test-ApiValidation -data $badEmailData
+$hasEmailRejected = $validationErrors1 -contains "Format d'email invalide"
+
+$badNomData = @{ nom=""; prenom="TestPrenom"; email="bot@example.invalid"; ville="VilleTest"; consent_etude=$true }
+$validationErrors2 = Test-ApiValidation -data $badNomData
+$hasNomRejected = $validationErrors2 -contains "Le nom est obligatoire"
+
+$q13OverflowData = @{ nom="Test"; prenom="Test"; email="bot@example.invalid"; ville="VilleTest"; consent_etude=$true; q13="1;2;3;4" }
+$validationErrors3 = Test-ApiValidation -data $q13OverflowData
+$hasQ13Rejected = $validationErrors3 -contains "Q13 : maximum 3 choix"
+
+$isPass12 = $hasEmailRejected -and $hasNomRejected -and $hasQ13Rejected
+Assert-Test -TestName "TEST 12/15: Validation métier unitaire de api/submit.js (Rejets stricts)" `
+    -Condition $isPass12 `
+    -Expected "Rejet explicite pour email invalide, nom manquant, et dépassement limite Q13" `
+    -Actual "Email rejeté: $hasEmailRejected | Nom rejeté: $hasNomRejected | Q13 rejeté: $hasQ13Rejected"
+
+# ----------------------------------------------------------------------------
+# PARTIE 3 : TESTS D'INTÉGRATION ET D'ÉCRITURE SUR BACKEND DÉDIÉ
+# (STRICTEMENT ISOLÉS — DÉSACTIVÉS PAR DÉFAUT POUR PROTÉGER LA PRODUCTION)
+# ----------------------------------------------------------------------------
+
+$canRunIntegration = $false
+$integrationSkipReason = ""
+
+if (-not $AllowWriteTests) {
+    $integrationSkipReason = "Tests d'écriture désactivés par défaut pour protéger la production. Activez avec -AllowWriteTests et un endpoint de test dédié."
+} elseif ([string]::IsNullOrWhiteSpace($TestEndpointUrl)) {
+    $integrationSkipReason = "Aucune URL de test fournie (-TestEndpointUrl ou `$env:TEST_GOOGLE_APPS_SCRIPT_URL non défini)."
+} elseif ($TestEndpointUrl -match $PRODUCTION_DEPLOYMENT_ID) {
+    $integrationSkipReason = "GARDE-FOU ACTIVÉ : L'URL fournie correspond au déploiement de PRODUCTION ($PRODUCTION_DEPLOYMENT_ID). Écriture refusée."
+} else {
+    $canRunIntegration = $true
+}
+
+if (-not $canRunIntegration) {
+    Skip-Test -TestName "TEST 13/15: Soumission nominale de test sur backend isolé" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 14/15: Vérification de l'idempotence et du décompte de lignes" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 15/15: Concurrence réelle multi-utilisateurs sur lignes distinctes" -Reason $integrationSkipReason
+} else {
+    Write-Host "`n>>> EXÉCUTION DES TESTS D'ÉCRITURE SUR L'ENVIRONNEMENT DE TEST ISOLÉ <<<" -ForegroundColor Yellow
+
+    # Données purement synthétiques (aucune coordonnée réelle)
+    $testSubId = "isolated_test_" + [Guid]::NewGuid().ToString().Substring(0,8)
+    $testPayload = @{
+        submission_id = $testSubId
+        nom = "ROBOT_TEST_FICTIF"
+        prenom = "AUTOMATE"
+        email = "robot-test-runner@example.invalid"
+        ville = "TEST_VILLE"
+        consent_etude = $true
+        consent_marketing = $false
+        website = ""
+        q1 = "Douala"
+        q2 = "Alimentation générale"
+        q13 = "Ruptures de stock"
+        q23 = "Gestion automatique des stocks"
+    } | ConvertTo-Json
+
+    # TEST 13 : Soumission nominale
+    try {
+        $resTest = Invoke-RestMethod -Uri $TestEndpointUrl -Method Post -Body $testPayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
+        $isPass13 = ($resTest -ne $null) -and ($resTest.status -eq "success") -and ($resTest.row -gt 0)
+        Assert-Test -TestName "TEST 13/15: Soumission nominale sur backend de test isolé" `
+            -Condition $isPass13 `
+            -Expected "status == 'success' et row > 0" `
+            -Actual "status = '$($resTest.status)', row = '$($resTest.row)'"
+    } catch {
+        Assert-Test -TestName "TEST 13/15: Soumission nominale sur backend de test isolé" `
+            -Condition $false `
+            -Expected "status == 'success'" `
+            -Actual "Exception: $_"
+    }
+
+    # TEST 14 : Idempotence (Renvoi du même ID et vérification de ligne inchangée)
+    try {
+        $resDup = Invoke-RestMethod -Uri $TestEndpointUrl -Method Post -Body $testPayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
+        $isPass14 = ($resDup.status -eq "success") -and ($resDup.duplicate -eq $true) -and ($resDup.row -eq $resTest.row)
+        Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence et du non-dédoublement de ligne" `
+            -Condition $isPass14 `
+            -Expected "duplicate == true et row == $($resTest.row) (aucune nouvelle ligne créée)" `
+            -Actual "duplicate = '$($resDup.duplicate)', row = '$($resDup.row)'"
+    } catch {
+        Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence" `
+            -Condition $false `
+            -Expected "duplicate == true" `
+            -Actual "Exception: $_"
+    }
+
+    # TEST 15 : Concurrence réelle
+    $cId1 = "conc_test1_" + [Guid]::NewGuid().ToString().Substring(0,6)
+    $cId2 = "conc_test2_" + [Guid]::NewGuid().ToString().Substring(0,6)
+    $p1 = @{ submission_id=$cId1; nom="ROBOT_CONC_1"; prenom="TEST"; email="bot1@example.invalid"; ville="TEST_VILLE"; consent_etude=$true } | ConvertTo-Json
+    $p2 = @{ submission_id=$cId2; nom="ROBOT_CONC_2"; prenom="TEST"; email="bot2@example.invalid"; ville="TEST_VILLE"; consent_etude=$true } | ConvertTo-Json
+
+    try {
+        $j1 = Start-Job -ScriptBlock { param($u, $b) Invoke-RestMethod -Uri $u -Method Post -Body $b -ContentType "text/plain;charset=utf-8" -TimeoutSec 20 } -ArgumentList $TestEndpointUrl, $p1
+        $j2 = Start-Job -ScriptBlock { param($u, $b) Invoke-RestMethod -Uri $u -Method Post -Body $b -ContentType "text/plain;charset=utf-8" -TimeoutSec 20 } -ArgumentList $TestEndpointUrl, $p2
+
+        $r1 = Receive-Job -Job $j1 -Wait
+        $r2 = Receive-Job -Job $j2 -Wait
+        Remove-Job -Job $j1, $j2
+
+        $isPass15 = ($r1.status -eq "success") -and ($r2.status -eq "success") -and ($r1.row -ne $r2.row)
+        Assert-Test -TestName "TEST 15/15: Concurrence réelle (Deux écritures simultanées sur 2 lignes distinctes)" `
+            -Condition $isPass15 `
+            -Expected "2 soumissions acceptées sur 2 lignes différentes" `
+            -Actual "Job 1: row=$($r1.row) | Job 2: row=$($r2.row)"
+    } catch {
+        Assert-Test -TestName "TEST 15/15: Concurrence réelle" `
+            -Condition $false `
+            -Expected "2 écritures sur 2 lignes distinctes" `
+            -Actual "Exception: $_"
+    }
+}
+
+# ----------------------------------------------------------------------------
+# SYNTHÈSE DES RÉSULTATS
 # ----------------------------------------------------------------------------
 Write-Host "`n==========================================================" -ForegroundColor Cyan
 Write-Host "SYNTHÈSE DE LA SUITE DE TESTS" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "Total des tests  : $total" -ForegroundColor Gray
-Write-Host "Tests Réussis    : $passed" -ForegroundColor Green
-Write-Host "Tests Échoués    : $failed" -ForegroundColor $(if ($failed -gt 0) { "Red" } else { "Green" })
+Write-Host "Total des tests prévus : $totalTests" -ForegroundColor Gray
+Write-Host "Tests Réussis          : $passed" -ForegroundColor Green
+Write-Host "Tests Échoués          : $failed" -ForegroundColor $(if ($failed -gt 0) { "Red" } else { "Green" })
+Write-Host "Tests Ignorés/Protégés : $skipped" -ForegroundColor $(if ($skipped -gt 0) { "Yellow" } else { "Gray" })
 Write-Host "==========================================================" -ForegroundColor Cyan

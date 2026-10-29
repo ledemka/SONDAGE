@@ -47,97 +47,52 @@ Le projet repose sur une architecture 3-tiers robuste éliminant définitivement
 ├── Code.gs                     # Backend Google Apps Script (v2.1, Reponses_Sondage_v2, LockService)
 ├── INSTRUCTIONS_GOOGLE_SHEETS.md # Guide de déploiement Apps Script et sécurité
 ├── README.md                   # Documentation générale et technique
-├── test_suite.ps1              # Suite de tests automatisés d'audit et de conformité
+├── test_suite.ps1              # Suite de tests automatisés (audit statique & intégration isolée)
 └── backup_original/            # Sauvegarde des fichiers initiaux du projet
 ```
 
-> **Note d'épuration :** Tous les fichiers et références relatifs à Netlify ont été intégralement supprimés. La plateforme de déploiement retenue est exclusivement Vercel.
+---
+
+## 🔒 Séparation Stricte entre Tests et Production
+
+Pour préserver l'intégrité de la base de données réelle des commerçants :
+1. **Zéro écriture de production par défaut :** Le script `test_suite.ps1` s'exécute par défaut en mode statique et unitaire. Il vérifie l'architecture, la conformité RGPD, les validations de schéma et la logique de l'endpoint sans jamais envoyer de requête vers la base de production.
+2. **Garde-fou inviolable :** Si une URL de test passée à `test_suite.ps1` correspond à la signature du déploiement de production (`AKfycbxpGZ9YZ...`), l'exécution des tests d'écriture est immédiatement bloquée.
+3. **Données de test 100% fictives :** Aucune vraie coordonnée personnelle n'est utilisée dans les scripts de test (adresses synthétiques `@example.invalid`, noms `ROBOT_TEST_FICTIF`).
+
+### Pour exécuter des tests d'intégration réels (Écriture) :
+Créez une feuille Google Sheets de test dédiée et déployez une copie de `Code.gs` :
+```powershell
+powershell -ExecutionPolicy Bypass -File .\test_suite.ps1 -AllowWriteTests -TestEndpointUrl "https://script.google.com/macros/s/VOTRE_DEPLOYMENT_TEST_ID/exec"
+```
+
+---
+
+## 🛡️ Protection de la Vie Privée & Stockage Local Minimisé (RGPD)
+
+Le stockage dans le navigateur (`localStorage`) a été revu pour respecter la vie privée des commerçants :
+- **Pas d'accumulation locale :** Le formulaire n'enregistre plus les réponses de manière permanente dans le `localStorage` après une soumission réussie.
+- **Purge immédiate du brouillon :** Dès que le serveur Google Sheets confirme l'enregistrement, le brouillon temporaire de travail est immédiatement effacé.
+- **Protection partagée multi-utilisateurs :** Lors du clic sur `➕ Remplir une nouvelle réponse`, tous les champs, coches, boutons radio et identifiants sont totalement réinitialisés. Un second répondant sur la même tablette/téléphone ne peut en aucun cas consulter les réponses du précédent.
+- **Effacement d'urgence à la demande :** Un bouton rouge `🗑️ Réinitialiser & Effacer les données locales` permet en permanence d'effacer le brouillon et de remettre le formulaire à blanc.
 
 ---
 
 ## 🚀 Déploiement sur Vercel
 
 ### Option 1 : Déploiement via le Dashboard Vercel (Recommandé)
-1. Poussez ce dossier sur un dépôt Git (GitHub, GitLab ou Bitbucket).
-2. Connectez-vous sur [vercel.com](https://vercel.com) et cliquez sur **Add New** > **Project**.
-3. Importez votre dépôt Git.
-4. Dans la section **Environment Variables**, ajoutez :
-   - **Key / Name** : `GOOGLE_APPS_SCRIPT_URL`
+1. Poussez ce dossier sur votre dépôt GitHub (`https://github.com/ledemka/SONDAGE.git`).
+2. Rendez-vous sur [vercel.com](https://vercel.com) > **Add New** > **Project**.
+3. Importez le projet **`SONDAGE`**.
+4. Dans **Environment Variables**, ajoutez :
+   - **Key** : `GOOGLE_APPS_SCRIPT_URL`
    - **Value** : `https://script.google.com/macros/s/AKfycbxpGZ9YZ3V6SrOzGP-WuTAysm6XTi4z20ri15qnEi8UbXTMRQlQtP9QdyFmDcLHl3H3/exec`
 5. Cliquez sur **Deploy**.
 
-### Option 2 : Déploiement via Vercel CLI
-```bash
-# Installation de la CLI Vercel si nécessaire
-npm i -g vercel
-
-# Connexion et déploiement
-vercel
-
-# Configuration de la variable d'environnement de production
-vercel env add GOOGLE_APPS_SCRIPT_URL production
-# (Coller l'URL du Web App Google Apps Script lorsqu'elle est demandée)
-
-# Déploiement en production
-vercel --prod
-```
-
-### 🔒 Sécurité de la Variable d'Environnement
-- La variable `GOOGLE_APPS_SCRIPT_URL` est accessible **uniquement côté serveur** par Node.js dans `api/submit.js`.
-- Elle n'est **jamais** préfixée par `NEXT_PUBLIC_` et n'est **jamais** injectée dans le code HTML/JS du navigateur.
-- Si cette variable est absente ou non configurée, l'endpoint `/api/submit` renvoie immédiatement une erreur HTTP 500 explicite (`MISSING_ENV_VAR`) sans faire échouer silencieusement la collecte.
-
 ---
 
-## 🔒 Résolution Définitive des Problèmes CORS
+## ⚙️ Confirmation Stricte de Soumission & Idempotence
 
-### Cause du problème initial
-Google Apps Script renvoie une redirection HTTP 302 de `script.google.com` vers `script.googleusercontent.com`. Lors d'un appel `fetch()` direct depuis le navigateur :
-- En `mode: "no-cors"`, la réponse est opaque (statut 0, corps illisible). Il était impossible de savoir si Google Sheets avait réellement enregistré les données.
-- En `mode: "cors"`, la plupart des navigateurs modernes bloquent la redirection cross-origin, déclenchant une exception TypeError non traitable.
-
-### Solution appliquée
-Le formulaire dans `index.html` appelle **exclusivement** l'endpoint same-origin `/api/submit` hébergé sur le même domaine Vercel :
-1. Aucune requête cross-origin n'est émise par le navigateur.
-2. `api/submit.js` reçoit le payload, le valide et effectue l'appel POST vers Google Apps Script **de serveur à serveur**, environnement où les restrictions CORS du navigateur ne s'appliquent pas.
-3. Le serveur Vercel lit la réponse JSON d'Apps Script et ne renvoie un code HTTP 200 au client que si `status === "success"`.
-4. En cas de panne, timeout (20s) ou rejet, le bouton est réactivé, une bannière rouge explicite s'affiche et les 46 réponses restent intactes dans le formulaire.
-
----
-
-## 🛡️ Protection des Données et Versionnement du Schéma
-
-### Nouvel onglet de réponses `Reponses_Sondage_v2`
-Pour éviter toute corruption des données antérieures suite à l'ajout de nouvelles colonnes techniques :
-- `Code.gs` écrit désormais dans un onglet dédié : **`Reponses_Sondage_v2`**.
-- L'ancien onglet historique `Reponses_Sondage` reste **intact et protégé**.
-- Une fonction de migration `migrateLegacyV1ToV2()` est intégrée dans `Code.gs` pour migrer les anciennes lignes vers le nouveau schéma sans perte d'information.
-
-### Schéma des 53 Colonnes (A à BA)
-1. `Submission_ID` (A) : UUID unique de déduplication
-2. `Timestamp_Serveur` (B) : Horodatage certifié par Google Apps Script
-3. `Nom` (C)
-4. `Prénom` (D)
-5. `Email` (E)
-6. `Ville` (F)
-7. `Consentement_Marketing` (G)
-8. `Q1_Ville_Localite` à `Q46_Accord_Recontact` (H à BA)
-
----
-
-## ⚙️ Protection Anti-Doublons et Idempotence
-
-1. Chaque soumission génère un identifiant cryptographique unique `Submission_ID` côté client.
-2. `Code.gs` utilise `LockService.getScriptLock()` pour verrouiller l'accès pendant l'écriture et inspecter la colonne A.
-3. Si un `Submission_ID` existe déjà dans la feuille (cas d'un double-clic ou d'un renvoi réseau), le serveur renvoie la confirmation existante avec `duplicate: true`, **sans créer de ligne orpheline en double**.
-
----
-
-## 🧪 Tests et Validation
-
-La suite [`test_suite.ps1`](file:///c:/Users/User/Documents/Antigravity/ENQUETTE%20MARCHE/test_suite.ps1) audite l'ensemble de la chaîne :
-- Validation de la configuration Vercel (`vercel.json`, `api/submit.js`, `.env.example`).
-- Absence totale de dépendances Netlify.
-- Intégrité des 46 questions dans `index.html` et de leur transmission.
-- Contrôle strict côté serveur (Honeypot, regex email, champs obligatoires, taille maximale).
-- Tests d'atomicité, concurrence et idempotence.
+1. **Vérification d'identité :** L'endpoint `api/submit.js` vérifie que le `submission_id` retourné par Apps Script est strictement identique à celui émis.
+2. **Preuve d'enregistrement vérifiable :** Le statut de succès n'est accordé que si un numéro de ligne réel (`row > 0`) ou une déduplication confirmée (`duplicate === true`) est retourné.
+3. **Persistance de l'ID en cas de timeout :** Si la connexion réseau est ralentie lors de l'envoi, l'identifiant unique reste préservé dans le formulaire. Lors du clic sur `Réessayer l'envoi`, le même ID est réémis : le backend saura s'il doit créer la ligne ou confirmer l'écriture précédente sans doublon.

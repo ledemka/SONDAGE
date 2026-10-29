@@ -121,21 +121,44 @@ export default async function handler(req, res) {
       });
     }
 
-    // 8. Vérification stricte du statut métier retourné par Apps Script
+    // 8. Vérification stricte du statut métier et de l'intégrité de confirmation
     if (upstreamJson && upstreamJson.status === "success") {
+      // 8a. Vérification de la concordance de l'identifiant de soumission
+      const sentSubId = String(data.submission_id || "").trim();
+      const returnedSubId = String(upstreamJson.submission_id || "").trim();
+      if (sentSubId && returnedSubId && sentSubId !== returnedSubId) {
+        return res.status(502).json({
+          status: "error",
+          code: "SUBMISSION_ID_MISMATCH",
+          message: "Incohérence d'intégrité : l'identifiant confirmé par Google Apps Script ne correspond pas à la soumission envoyée."
+        });
+      }
+
+      // 8b. Vérification qu'un enregistrement réel a eu lieu (row > 0) ou qu'un doublon avéré a été détecté
+      const hasValidRow = typeof upstreamJson.row === "number" && upstreamJson.row > 0;
+      const isDuplicate = upstreamJson.duplicate === true;
+
+      if (!hasValidRow && !isDuplicate) {
+        return res.status(502).json({
+          status: "error",
+          code: "UNCONFIRMED_RECORD",
+          message: "L'enregistrement n'a pas pu être certifié de manière vérifiable par le service de stockage (aucun numéro de ligne ni déduplication confirmée)."
+        });
+      }
+
       return res.status(200).json({
         status: "success",
-        submission_id: upstreamJson.submission_id || data.submission_id,
-        duplicate: !!upstreamJson.duplicate,
-        row: upstreamJson.row || null,
-        message: upstreamJson.message || "Réponse enregistrée avec succès dans Google Sheets."
+        submission_id: returnedSubId || sentSubId,
+        duplicate: isDuplicate,
+        row: hasValidRow ? upstreamJson.row : null,
+        message: upstreamJson.message || "Réponse certifiée et enregistrée avec succès dans Google Sheets."
       });
     } else {
-      // Rejet explicite par Google Apps Script
+      // Rejet explicite par Google Apps Script (ex: validation serveur, verrou serveur)
       return res.status(422).json({
         status: "error",
-        code: upstreamJson.code || "UPSTREAM_REJECTED",
-        message: upstreamJson.message || "Le service Google Sheets n'a pas validé l'enregistrement."
+        code: upstreamJson?.code || "UPSTREAM_REJECTED",
+        message: upstreamJson?.message || "Le service Google Sheets n'a pas validé l'enregistrement."
       });
     }
 

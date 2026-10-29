@@ -678,13 +678,13 @@
   </noscript>
 
   <div class="app-container" id="app">
-    <!-- Top toolbar for saved local data -->
+    <!-- Top toolbar for data privacy and local controls -->
     <div class="top-toolbar">
-      <button type="button" class="pill-btn" onclick="exportStoredResponses()" title="Télécharger les réponses locales en CSV">
-        📥 Sauvegarde CSV (<span id="localCountBadge">0</span>)
+      <button type="button" class="pill-btn" onclick="exportCurrentOrDraftCsv()" title="Télécharger la saisie actuelle en CSV de secours">
+        📥 Sauvegarde CSV de secours
       </button>
-      <button type="button" class="pill-btn" onclick="purgeLocalStorage()" title="Purger l'historique local de cet appareil" style="color:#b91c1c;">
-        🗑️ Vider l'historique
+      <button type="button" class="pill-btn" onclick="purgeLocalDataWithConfirmation()" title="Purger le brouillon et réinitialiser le formulaire" style="color:#b91c1c;">
+        🗑️ Réinitialiser & Effacer les données locales
       </button>
     </div>
 
@@ -1621,8 +1621,8 @@
         <button type="button" class="btn btn-primary" onclick="resetFormForNewRespondent()">
           ➕ Remplir une nouvelle réponse
         </button>
-        <button type="button" class="btn btn-secondary" onclick="exportStoredResponses()">
-          📥 Télécharger la sauvegarde CSV des réponses
+        <button type="button" class="btn btn-secondary" onclick="exportSingleSubmissionCsv()">
+          📥 Télécharger cette réponse en CSV
         </button>
       </div>
     </div>
@@ -1633,7 +1633,6 @@
     /* =====================================================================
        CONFIGURATION & INITIAL STATE
     ===================================================================== */
-    const STORAGE_KEY_RESPONSES = "survey_cameroon_responses_db";
     const STORAGE_KEY_DRAFT = "survey_cameroon_draft";
 
     let currentSubmissionId = null;
@@ -1671,7 +1670,6 @@
       initOtherHandlers();
       initHighlightOptions();
       loadDraft();
-      updateLocalCount();
       updateNavigation();
     });
 
@@ -2327,7 +2325,7 @@
         }
 
         // ✅ SUCCÈS VÉRIFIÉ ET CONFIRMÉ PAR LE BACKEND ET GOOGLE SHEETS
-        saveResponseLocally(data);
+        // Conformité RGPD & Confidentialité : Purge immédiate du brouillon local dès confirmation
         localStorage.removeItem(STORAGE_KEY_DRAFT);
         showThankYouView({
           submissionId: result.submission_id || data.submission_id,
@@ -2346,7 +2344,7 @@
         // Diagnostic précis du type d'échec
         let userMsg = "";
         if (err.name === "AbortError") {
-          userMsg = "⏱️ Délai d'attente dépassé (25 secondes). La connexion internet semble ralentie ou le serveur est momentanément indisponible. Vos réponses sont précieusement conservées dans ce formulaire. Cliquez sur 'Réessayer l'envoi' ou téléchargez la sauvegarde CSV.";
+          userMsg = "⏱️ Délai d'attente dépassé (25 secondes). Le statut exact de l'enregistrement est incertain. Vos réponses sont intégralement conservées. Cliquez sur 'Réessayer l'envoi' pour renvoyer la demande avec le MÊME identifiant unique (grâce au système d'idempotence, aucun doublon ne sera créé si la feuille l'a déjà reçu) ou téléchargez la réponse en CSV de secours.";
         } else if (!navigator.onLine) {
           userMsg = "📶 Aucune connexion internet détectée sur cet appareil. Vos réponses restent intactes dans ce formulaire. Dès que vous avez du réseau, cliquez sur 'Réessayer l'envoi'.";
         } else {
@@ -2411,17 +2409,21 @@
         badge.innerHTML = "ℹ️ Cette réponse avait déjà été enregistrée dans Google Sheets (identifiant dédupliqué). Aucun doublon n'a été créé.";
       } else {
         badge.className = "status-alert success";
-        badge.innerHTML = "🟢 Enregistrement vérifié avec succès dans Google Sheets (Ligne " + (info && info.row ? info.row : "confirmée") + ").";
+        badge.innerHTML = "🟢 Enregistrement vérifié avec succès dans Google Sheets (Ligne " + (info && info.row ? info.row : "confirmée") + ").<br><small style='font-weight:normal; color:#1e293b;'>Pour votre confidentialité, les données locales temporaires ont été purgées de cet appareil.</small>";
       }
 
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function resetFormForNewRespondent() {
-      if (confirm("Voulez-vous commencer un nouveau questionnaire pour un autre commerçant ?")) {
+      if (confirm("Voulez-vous commencer un nouveau questionnaire pour un autre commerçant ?\n\nToutes les saisies précédentes seront définitivement effacées de cet appareil pour protéger la confidentialité des données.")) {
         document.getElementById("surveyForm").reset();
         document.querySelectorAll(".option-item.selected").forEach(el => el.classList.remove("selected"));
-        document.querySelectorAll(".sub-input-box").forEach(box => box.style.display = "none");
+        document.querySelectorAll(".sub-input-box").forEach(box => {
+          box.style.display = "none";
+          const input = box.querySelector("input, textarea");
+          if (input) input.value = "";
+        });
         localStorage.removeItem(STORAGE_KEY_DRAFT);
         currentSubmissionId = null;
         formStartTime = Date.now();
@@ -2432,51 +2434,36 @@
         hideSubmitError();
         initCheckboxLimiters();
         updateNavigation();
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     }
 
     /* =====================================================================
-       LOCAL STORAGE REPOSITORY & DRAFT RESUME
+       GESTION MINIMISÉE ET CONFORME DU STOCKAGE LOCAL (RGPD)
     ===================================================================== */
-    function saveResponseLocally(response) {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSES) || "[]");
-        // Éviter les doublons dans le stockage local
-        const exists = stored.some(r => r.submission_id === response.submission_id);
-        if (!exists) {
-          stored.push(response);
-          localStorage.setItem(STORAGE_KEY_RESPONSES, JSON.stringify(stored));
-          updateLocalCount();
-        }
-      } catch (e) {
-        console.error("Local storage error:", e);
-      }
-    }
-
-    function purgeLocalStorage() {
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSES) || "[]");
-      if (stored.length === 0) {
-        alert("L'historique local est déjà vide.");
-        return;
-      }
+    function purgeLocalDataWithConfirmation() {
       const confirmed = confirm(
-        `Êtes-vous sûr de vouloir supprimer l'historique local (${stored.length} réponses) sur cet appareil ?\n\nAssurez-vous d'avoir téléchargé votre fichier CSV au préalable si nécessaire.`
+        "Êtes-vous sûr de vouloir réinitialiser le formulaire et effacer le brouillon local de cet appareil ?\n\nCette action permet d'éviter qu'un autre utilisateur accède à vos saisies en cours."
       );
       if (confirmed) {
-        localStorage.removeItem(STORAGE_KEY_RESPONSES);
         localStorage.removeItem(STORAGE_KEY_DRAFT);
-        updateLocalCount();
-        alert("✅ Historique local purgé avec succès.");
+        currentSubmissionId = null;
+        document.getElementById("surveyForm").reset();
+        document.querySelectorAll(".option-item.selected").forEach(el => el.classList.remove("selected"));
+        document.querySelectorAll(".sub-input-box").forEach(box => {
+          box.style.display = "none";
+          const input = box.querySelector("input, textarea");
+          if (input) input.value = "";
+        });
+        currentSection = 0;
+        updateNavigation();
+        hideSubmitError();
+        alert("✅ Données locales effacées et formulaire réinitialisé.");
       }
     }
 
-    function updateLocalCount() {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSES) || "[]");
-        if (localCountBadge) {
-          localCountBadge.textContent = stored.length;
-        }
-      } catch (e) {}
+    function exportCurrentOrDraftCsv() {
+      exportSingleSubmissionCsv();
     }
 
     function autoSaveDraft() {
@@ -2594,25 +2581,6 @@
         item.q41, item.q42, item.q43, item.q44, item.q45,
         item.q46
       ];
-    }
-
-    function exportStoredResponses() {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY_RESPONSES) || "[]");
-        if (stored.length === 0) {
-          alert("Aucune réponse enregistrée localement pour le moment. Remplissez le formulaire et soumettez pour créer une ligne.");
-          return;
-        }
-
-        const rows = [CSV_HEADERS_53.map(escapeCsv).join(",")];
-        stored.forEach(item => {
-          rows.push(rowFromItem(item).map(escapeCsv).join(","));
-        });
-
-        triggerCsvDownload(rows.join("\r\n"), `sondage_commerces_cameroun_total_${new Date().toISOString().slice(0, 10)}.csv`);
-      } catch (err) {
-        console.error("Erreur lors de l'export CSV :", err);
-      }
     }
 
     function exportSingleSubmissionCsv() {
