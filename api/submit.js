@@ -123,10 +123,19 @@ export default async function handler(req, res) {
 
     // 8. Vérification stricte du statut métier et de l'intégrité de confirmation
     if (upstreamJson && upstreamJson.status === "success") {
-      // 8a. Vérification de la concordance de l'identifiant de soumission
+      // 8a. Exigence absolue : l'identifiant retourné doit être présent ET strictement identique à celui envoyé
       const sentSubId = String(data.submission_id || "").trim();
       const returnedSubId = String(upstreamJson.submission_id || "").trim();
-      if (sentSubId && returnedSubId && sentSubId !== returnedSubId) {
+
+      if (!returnedSubId) {
+        return res.status(502).json({
+          status: "error",
+          code: "SUBMISSION_ID_MISSING",
+          message: "Incohérence d'intégrité : aucun identifiant de soumission n'a été retourné par Google Apps Script."
+        });
+      }
+
+      if (returnedSubId !== sentSubId) {
         return res.status(502).json({
           status: "error",
           code: "SUBMISSION_ID_MISMATCH",
@@ -148,7 +157,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         status: "success",
-        submission_id: returnedSubId || sentSubId,
+        submission_id: returnedSubId,
         duplicate: isDuplicate,
         row: hasValidRow ? upstreamJson.row : null,
         message: upstreamJson.message || "Réponse certifiée et enregistrée avec succès dans Google Sheets."
@@ -186,6 +195,14 @@ export default async function handler(req, res) {
  */
 function validatePayload(data) {
   const errors = [];
+
+  // Exigence absolue d'un submission_id valide
+  const submissionId = String(data.submission_id || "").trim();
+  if (!submissionId) {
+    errors.push("L'identifiant de soumission (submission_id) est obligatoire");
+  } else if (submissionId.length < 8 || submissionId.length > 120) {
+    errors.push("L'identifiant de soumission (submission_id) doit comporter entre 8 et 120 caractères");
+  }
 
   const nom = String(data.nom || "").trim();
   if (!nom) errors.push("Le nom est obligatoire");

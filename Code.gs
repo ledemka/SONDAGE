@@ -267,59 +267,15 @@ function doPost(e) {
 }
 
 /**
- * Traitement des requêtes GET (Diagnostic & Vérification de soumission)
+ * Traitement des requêtes GET (Diagnostic technique & Health Check)
+ * 
+ * SÉCURITÉ & CONFIDENTIALITÉ :
+ * La vérification publique par submission_id (?action=verify) a été supprimée
+ * car elle n'est pas utilisée par le formulaire (qui communique exclusivement
+ * avec l'endpoint serveur /api/submit) et exposait un risque de sondage
+ * ou d'énumération par un tiers des identifiants enregistrés.
  */
 function doGet(e) {
-  // Option de vérification asynchrone par submission_id
-  if (e && e.parameter && e.parameter.action === "verify") {
-    const subId = String(e.parameter.submission_id || "").trim();
-    if (!subId) {
-      return jsonResponse({
-        status: "error",
-        code: "MISSING_ID",
-        message: "Paramètre submission_id manquant."
-      }, 400);
-    }
-
-    try {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getSheetByName(SHEET_NAME_V2);
-      if (!sheet) {
-        return jsonResponse({
-          status: "success",
-          recorded: false,
-          submission_id: subId,
-          message: "Feuille v2 non encore initialisée."
-        });
-      }
-
-      const found = findSubmissionInSheet(sheet, subId);
-      if (found) {
-        return jsonResponse({
-          status: "success",
-          recorded: true,
-          submission_id: subId,
-          row: found.row,
-          message: "Soumission confirmée présente dans la feuille."
-        });
-      } else {
-        return jsonResponse({
-          status: "success",
-          recorded: false,
-          submission_id: subId,
-          message: "Soumission non trouvée dans la feuille."
-        });
-      }
-    } catch (err) {
-      return jsonResponse({
-        status: "error",
-        code: "VERIFY_ERROR",
-        message: err.toString()
-      }, 500);
-    }
-  }
-
-  // Diagnostic standard
   return jsonResponse({
     status: "online",
     service: "Enquête Marché Cameroun — API de synchronisation",

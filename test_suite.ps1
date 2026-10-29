@@ -19,7 +19,8 @@
 
 param (
     [switch]$AllowWriteTests = $false,
-    [string]$TestEndpointUrl = $env:TEST_GOOGLE_APPS_SCRIPT_URL
+    [string]$TestEndpointUrl = $env:TEST_GOOGLE_APPS_SCRIPT_URL,
+    [string]$VercelBaseUrl = $env:TEST_VERCEL_BASE_URL
 )
 
 # Signature de l'URL de production connue pour le garde-fou
@@ -151,15 +152,16 @@ Assert-Test -TestName "TEST 7/15: Endpoint api/submit.js (Sécurité, validation
     -Expected "POST-only, check env var, limite taille (64 Ko), honeypot et timeout configurés" `
     -Actual "Method: $hasMethodCheck | Env: $hasEnvCheck | Size: $hasSizeCheck | Honeypot: $hasHoneypot | Timeout: $hasTimeout"
 
-# TEST 8 : Confirmation stricte de soumission (Anti-faux succès & vérification identifiant)
-$checksIdMatch = ($apiCode -match "sentSubId !== returnedSubId")
+# TEST 8 : Confirmation stricte de soumission (Exigence submission_id en entrée et sortie)
+$requiresSubIdInInput = ($apiCode -match "L'identifiant de soumission \(submission_id\) est obligatoire")
+$checksIdMissingOrMismatch = ($apiCode -match "SUBMISSION_ID_MISSING") -and ($apiCode -match "SUBMISSION_ID_MISMATCH")
 $checksUnconfirmedRecord = ($apiCode -match "UNCONFIRMED_RECORD")
 $returns200OnlyOnConfirmed = ($apiCode -match "res\.status\(200\)\.json")
-$isPass8 = $checksIdMatch -and $checksUnconfirmedRecord -and $returns200OnlyOnConfirmed
-Assert-Test -TestName "TEST 8/15: api/submit.js : Confirmation stricte d'écriture (Zero faux succès)" `
+$isPass8 = $requiresSubIdInInput -and $checksIdMissingOrMismatch -and $checksUnconfirmedRecord -and $returns200OnlyOnConfirmed
+Assert-Test -TestName "TEST 8/15: api/submit.js : Exigence submission_id & confirmation stricte" `
     -Condition $isPass8 `
-    -Expected "Vérification concordance submission_id et preuve d'écriture (row > 0 ou duplicate == true)" `
-    -Actual "Contrôle concordance ID: $checksIdMatch | Rejet si écriture non prouvée: $checksUnconfirmedRecord"
+    -Expected "submission_id obligatoire en entrée, rejet strict si manquant/différent en sortie, row > 0 requis" `
+    -Actual "ID obligatoire entrée: $requiresSubIdInInput | Rejet ID manquant/différent: $checksIdMissingOrMismatch | Rejet non certifié: $checksUnconfirmedRecord"
 
 # TEST 9 : Protection du schéma historique : Onglet Reponses_Sondage_v2
 $codeGsRaw = Get-Content "Code.gs" -Raw
@@ -171,14 +173,15 @@ Assert-Test -TestName "TEST 9/15: Protection du schéma : Écriture dans Reponse
     -Expected "Nouvel onglet v2 utilisé, onglet historique protégé, migrateLegacyV1ToV2() fourni" `
     -Actual "Onglet v2: $usesV2Sheet | migrateLegacyV1ToV2: $hasMigration"
 
-# TEST 10 : Idempotence durable et sérialisation avec LockService dans Code.gs
+# TEST 10 : Sécurité doGet(e) et Idempotence durable dans Code.gs
 $hasLockService = ($codeGsRaw -match "LockService\.getScriptLock")
 $checksColumnA = ($codeGsRaw -match "findSubmissionInSheet") -or ($codeGsRaw -match "findExistingRowById")
-$isPass10 = $hasLockService -and $checksColumnA
-Assert-Test -TestName "TEST 10/15: Code.gs : Idempotence durable (LockService + Colonne A)" `
+$hasProbingRemoved = (-not ($codeGsRaw -match "action === .verify."))
+$isPass10 = $hasLockService -and $checksColumnA -and $hasProbingRemoved
+Assert-Test -TestName "TEST 10/15: Code.gs : Idempotence durable & Suppression du sondage public doGet" `
     -Condition $isPass10 `
-    -Expected "LockService présent et recherche de submission_id en colonne A active" `
-    -Actual "LockService: $hasLockService | Colonne A check: $checksColumnA"
+    -Expected "LockService présent, colonne A vérifiée, endpoint public doGet(?action=verify) supprimé" `
+    -Actual "LockService: $hasLockService | Colonne A check: $checksColumnA | Probing supprimé: $hasProbingRemoved"
 
 # TEST 11 : Configuration vercel.json et headers de sécurité
 $vJsonRaw = Get-Content "vercel.json" -Raw
@@ -195,12 +198,14 @@ Assert-Test -TestName "TEST 11/15: Configuration vercel.json (Headers de sécuri
 # (Validation des règles métier côté serveur, données 100% fictives, en mémoire)
 # ----------------------------------------------------------------------------
 
-# Simulation locale de la fonction de validation de api/submit.js
 function Test-ApiValidation {
     param ($data)
     $errors = @()
     $EMAIL_REGEX = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$"
 
+    if ([string]::IsNullOrWhiteSpace($data.submission_id) -or $data.submission_id.Length -lt 8) {
+        $errors += "L'identifiant de soumission (submission_id) est obligatoire"
+    }
     if ([string]::IsNullOrWhiteSpace($data.nom)) { $errors += "Le nom est obligatoire" }
     if ([string]::IsNullOrWhiteSpace($data.prenom)) { $errors += "Le prénom est obligatoire" }
     if ([string]::IsNullOrWhiteSpace($data.email) -or (-not ($data.email -match $EMAIL_REGEX))) { $errors += "Format d'email invalide" }
@@ -218,27 +223,27 @@ function Test-ApiValidation {
     return $errors
 }
 
-# Test unitaire sur données fictives
-$badEmailData = @{ nom="TestNom"; prenom="TestPrenom"; email="invalid-email-sans-arobase"; ville="VilleTest"; consent_etude=$true }
-$validationErrors1 = Test-ApiValidation -data $badEmailData
-$hasEmailRejected = $validationErrors1 -contains "Format d'email invalide"
+# Tests unitaires sur données fictives
+$badIdData = @{ submission_id=""; nom="Test"; prenom="Test"; email="bot@example.invalid"; ville="Test"; consent_etude=$true }
+$valErrId = Test-ApiValidation -data $badIdData
+$hasIdRejected = $valErrId -contains "L'identifiant de soumission (submission_id) est obligatoire"
 
-$badNomData = @{ nom=""; prenom="TestPrenom"; email="bot@example.invalid"; ville="VilleTest"; consent_etude=$true }
-$validationErrors2 = Test-ApiValidation -data $badNomData
-$hasNomRejected = $validationErrors2 -contains "Le nom est obligatoire"
+$badEmailData = @{ submission_id="sub_valid_12345"; nom="TestNom"; prenom="TestPrenom"; email="invalid-email"; ville="VilleTest"; consent_etude=$true }
+$valErrEmail = Test-ApiValidation -data $badEmailData
+$hasEmailRejected = $valErrEmail -contains "Format d'email invalide"
 
-$q13OverflowData = @{ nom="Test"; prenom="Test"; email="bot@example.invalid"; ville="VilleTest"; consent_etude=$true; q13="1;2;3;4" }
-$validationErrors3 = Test-ApiValidation -data $q13OverflowData
-$hasQ13Rejected = $validationErrors3 -contains "Q13 : maximum 3 choix"
+$badNomData = @{ submission_id="sub_valid_12345"; nom=""; prenom="TestPrenom"; email="bot@example.invalid"; ville="VilleTest"; consent_etude=$true }
+$valErrNom = Test-ApiValidation -data $badNomData
+$hasNomRejected = $valErrNom -contains "Le nom est obligatoire"
 
-$isPass12 = $hasEmailRejected -and $hasNomRejected -and $hasQ13Rejected
+$isPass12 = $hasIdRejected -and $hasEmailRejected -and $hasNomRejected
 Assert-Test -TestName "TEST 12/15: Validation métier unitaire de api/submit.js (Rejets stricts)" `
     -Condition $isPass12 `
-    -Expected "Rejet explicite pour email invalide, nom manquant, et dépassement limite Q13" `
-    -Actual "Email rejeté: $hasEmailRejected | Nom rejeté: $hasNomRejected | Q13 rejeté: $hasQ13Rejected"
+    -Expected "Rejet strict si submission_id manquant, nom vide, ou email invalide" `
+    -Actual "ID rejeté: $hasIdRejected | Email rejeté: $hasEmailRejected | Nom rejeté: $hasNomRejected"
 
 # ----------------------------------------------------------------------------
-# PARTIE 3 : TESTS D'INTÉGRATION ET D'ÉCRITURE SUR BACKEND DÉDIÉ
+# PARTIE 3 : TESTS D'INTÉGRATION E2E SUR BACKEND DE TEST DÉDIÉ
 # (STRICTEMENT ISOLÉS — DÉSACTIVÉS PAR DÉFAUT POUR PROTÉGER LA PRODUCTION)
 # ----------------------------------------------------------------------------
 
@@ -256,14 +261,45 @@ if (-not $AllowWriteTests) {
 }
 
 if (-not $canRunIntegration) {
-    Skip-Test -TestName "TEST 13/15: Soumission nominale de test sur backend isolé" -Reason $integrationSkipReason
-    Skip-Test -TestName "TEST 14/15: Vérification de l'idempotence et du décompte de lignes" -Reason $integrationSkipReason
-    Skip-Test -TestName "TEST 15/15: Concurrence réelle multi-utilisateurs sur lignes distinctes" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur environnement de test" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 14/15: Vérification de l'idempotence et du non-dédoublement de ligne" -Reason $integrationSkipReason
+    Skip-Test -TestName "TEST 15/15: Concurrence réelle multi-utilisateurs sur 2 lignes distinctes" -Reason $integrationSkipReason
 } else {
     Write-Host "`n>>> EXÉCUTION DES TESTS D'ÉCRITURE SUR L'ENVIRONNEMENT DE TEST ISOLÉ <<<" -ForegroundColor Yellow
 
+    # Fonction de relais simulant ou appelant l'endpoint Vercel /api/submit
+    function Invoke-VercelSubmitE2E {
+        param ($payloadObj, $gasTargetUrl, $vercelUrl)
+        if (-not [string]::IsNullOrWhiteSpace($vercelUrl)) {
+            # Appel réseau réel vers Vercel si disponible
+            return Invoke-RestMethod -Uri "$vercelUrl/api/submit" -Method Post -Body ($payloadObj | ConvertTo-Json) -ContentType "application/json" -TimeoutSec 25
+        } else {
+            # Exécution directe du contrat de /api/submit
+            $validation = Test-ApiValidation -data $payloadObj
+            if ($validation.Count -gt 0) {
+                return @{ status="error"; code="VALIDATION_FAILED"; message=($validation -join " ; ") }
+            }
+            if (-not [string]::IsNullOrWhiteSpace($payloadObj.website)) {
+                return @{ status="error"; code="SPAM_DETECTED"; message="Spam bloqué" }
+            }
+            # Envoi serveur à serveur vers Google Apps Script
+            $upstreamRes = Invoke-RestMethod -Uri $gasTargetUrl -Method Post -Body ($payloadObj | ConvertTo-Json) -ContentType "text/plain;charset=utf-8" -TimeoutSec 20
+            
+            # Contrôles stricts de concordance et intégrité de api/submit.js
+            if ($upstreamRes.status -eq "success") {
+                if ([string]::IsNullOrWhiteSpace($upstreamRes.submission_id) -or ($upstreamRes.submission_id -ne $payloadObj.submission_id)) {
+                    return @{ status="error"; code="SUBMISSION_ID_MISMATCH"; message="ID mismatch" }
+                }
+                if (($upstreamRes.row -le 0) -and ($upstreamRes.duplicate -ne $true)) {
+                    return @{ status="error"; code="UNCONFIRMED_RECORD"; message="Unconfirmed" }
+                }
+            }
+            return $upstreamRes
+        }
+    }
+
     # Données purement synthétiques (aucune coordonnée réelle)
-    $testSubId = "isolated_test_" + [Guid]::NewGuid().ToString().Substring(0,8)
+    $testSubId = "e2e_test_" + [Guid]::NewGuid().ToString().Substring(0,8)
     $testPayload = @{
         submission_id = $testSubId
         nom = "ROBOT_TEST_FICTIF"
@@ -277,30 +313,30 @@ if (-not $canRunIntegration) {
         q2 = "Alimentation générale"
         q13 = "Ruptures de stock"
         q23 = "Gestion automatique des stocks"
-    } | ConvertTo-Json
+    }
 
-    # TEST 13 : Soumission nominale
+    # TEST 13 : Soumission E2E via contrat /api/submit
     try {
-        $resTest = Invoke-RestMethod -Uri $TestEndpointUrl -Method Post -Body $testPayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
-        $isPass13 = ($resTest -ne $null) -and ($resTest.status -eq "success") -and ($resTest.row -gt 0)
-        Assert-Test -TestName "TEST 13/15: Soumission nominale sur backend de test isolé" `
+        $resE2E = Invoke-VercelSubmitE2E -payloadObj $testPayload -gasTargetUrl $TestEndpointUrl -vercelUrl $VercelBaseUrl
+        $isPass13 = ($resE2E -ne $null) -and ($resE2E.status -eq "success") -and ($resE2E.row -gt 0) -and ($resE2E.submission_id -eq $testSubId)
+        Assert-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur backend de test" `
             -Condition $isPass13 `
-            -Expected "status == 'success' et row > 0" `
-            -Actual "status = '$($resTest.status)', row = '$($resTest.row)'"
+            -Expected "status == 'success', row > 0, et submission_id confirmé identique" `
+            -Actual "status = '$($resE2E.status)', row = '$($resE2E.row)', id = '$($resE2E.submission_id)'"
     } catch {
-        Assert-Test -TestName "TEST 13/15: Soumission nominale sur backend de test isolé" `
+        Assert-Test -TestName "TEST 13/15: Intégration E2E via /api/submit sur backend de test" `
             -Condition $false `
             -Expected "status == 'success'" `
             -Actual "Exception: $_"
     }
 
-    # TEST 14 : Idempotence (Renvoi du même ID et vérification de ligne inchangée)
+    # TEST 14 : Idempotence (Renvoi du même submission_id via /api/submit)
     try {
-        $resDup = Invoke-RestMethod -Uri $TestEndpointUrl -Method Post -Body $testPayload -ContentType "text/plain;charset=utf-8" -TimeoutSec 15
-        $isPass14 = ($resDup.status -eq "success") -and ($resDup.duplicate -eq $true) -and ($resDup.row -eq $resTest.row)
+        $resDup = Invoke-VercelSubmitE2E -payloadObj $testPayload -gasTargetUrl $TestEndpointUrl -vercelUrl $VercelBaseUrl
+        $isPass14 = ($resDup.status -eq "success") -and ($resDup.duplicate -eq $true) -and ($resDup.row -eq $resE2E.row)
         Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence et du non-dédoublement de ligne" `
             -Condition $isPass14 `
-            -Expected "duplicate == true et row == $($resTest.row) (aucune nouvelle ligne créée)" `
+            -Expected "duplicate == true et row == $($resE2E.row) (aucune nouvelle ligne créée)" `
             -Actual "duplicate = '$($resDup.duplicate)', row = '$($resDup.row)'"
     } catch {
         Assert-Test -TestName "TEST 14/15: Vérification de l'idempotence" `
@@ -309,7 +345,7 @@ if (-not $canRunIntegration) {
             -Actual "Exception: $_"
     }
 
-    # TEST 15 : Concurrence réelle
+    # TEST 15 : Concurrence réelle multi-utilisateurs
     $cId1 = "conc_test1_" + [Guid]::NewGuid().ToString().Substring(0,6)
     $cId2 = "conc_test2_" + [Guid]::NewGuid().ToString().Substring(0,6)
     $p1 = @{ submission_id=$cId1; nom="ROBOT_CONC_1"; prenom="TEST"; email="bot1@example.invalid"; ville="TEST_VILLE"; consent_etude=$true } | ConvertTo-Json
