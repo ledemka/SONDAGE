@@ -57,7 +57,7 @@ Dans votre classeur Google Sheets, vous disposez désormais d'un **menu dédié*
    - Les **tableaux de répartition** par Ville (Q1) et par Secteur d'activité (Q2).
    - Les **tableaux d'analyse** des difficultés majeures (Q13) et de la gravité des incidents (Q15 à Q22).
    - Les **attentes fonctionnelles** (Q23) et les **budgets mensuels acceptables** (Q37).
-   - **Mise à jour 100% automatique** : toutes les métriques utilisent des formules dynamiques (`COUNTA`, `COUNTIF`) qui se recalculent en temps réel à chaque nouvelle réponse !
+   - **Mise à jour automatique et infaillible** : toutes les métriques sont calculées dynamiquement et se recalculent automatiquement à chaque nouvelle soumission !
 
 ---
 
