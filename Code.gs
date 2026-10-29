@@ -872,10 +872,6 @@ function setupOrUpdateDashboardSheet() {
   return "Onglet Dashboard KPI actualisé avec succès (" + total + " réponses analysées).";
 }
 
-  Logger.log("Onglet '" + SHEET_NAME_DASHBOARD + "' configuré avec succès.");
-  return "Onglet Dashboard KPI généré avec succès dans Google Sheets.";
-}
-
 /**
  * Utilitaire pour formater une réponse JSON
  */
