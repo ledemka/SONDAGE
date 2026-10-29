@@ -392,3 +392,4 @@ function countMultiChoices(rows, fieldName, total) {
     }))
     .sort((a, b) => b.count - a.count);
 }
+

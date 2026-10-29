@@ -79,3 +79,4 @@ Chaque ligne correspond à une soumission unique d'un commerçant répondant.
 | **51** | `Q44_Accompagnement_Souhaite`| `q44`| String | WhatsApp/Tél, Formation présentielle, Vidéo, Installation, Documentation, Aucun | Besoins de Customer Success et onboarding. | Support |
 | **52** | `Q45_Motif_Refus` | `q45` | Texte libre | Texte explicatif | Objections de vente majeures. | Objections |
 | **53** | `Q46_Accord_Recontact` | `q46` | Binaire | Oui, Non | **Opt-in commercial explicite pour démo/bêta.** | Commercial |
+

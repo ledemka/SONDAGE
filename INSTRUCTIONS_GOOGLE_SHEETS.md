@@ -36,7 +36,7 @@ Votre feuille Google Sheets de production est accessible à l'adresse suivante :
 1. En haut à droite de l'éditeur Apps Script, cliquez sur **Déployer** > **Gérer les déploiements** (Manage deployments).
 2. Cliquez sur l'icône **Crayon ✏️ (Modifier)** en haut à droite.
 3. Dans la liste déroulante **Version**, sélectionnez : **« Nouvelle version »** (New version).
-4. Description : `Version 2.1 - Vercel Relay, Reponses_Sondage_v2, LockService, Strict Idempotence`.
+4. Description : `Version 2.3 - Dashboard KPI natif Google Sheets + Vercel Web Analytics`.
 5. Vérifiez les paramètres d'accès :
    - **Exécuter en tant que :** `Moi (<votre email>)`
    - **Qui a accès :** **`Tous les utilisateurs`** (Anyone)
@@ -46,7 +46,22 @@ Votre feuille Google Sheets de production est accessible à l'adresse suivante :
 
 ---
 
-## 2. Création d'un Environnement de Test Isolé (Optionnel)
+## 2. Générer l'onglet Dashboard KPI directement dans Google Sheets
+
+Dans votre classeur Google Sheets, vous disposez désormais d'un **menu dédié** :
+1. Rafraîchissez la page de votre classeur Google Sheets dans le navigateur (`F5`).
+2. Un nouveau menu apparaît dans la barre d'outils : **« 📊 Enquête Marché »**.
+3. Cliquez sur **« 📈 Créer / Mettre à jour l'onglet Dashboard KPI »**.
+4. Un nouvel onglet nommé **`Dashboard_KPI`** se crée instantanément avec :
+   - Les **cartes KPI récapitulatives** (Total réponses valides, Candidats pilote Q41, Prêts à payer Q42, Opt-in recontact Q46).
+   - Les **tableaux de répartition** par Ville (Q1) et par Secteur d'activité (Q2).
+   - Les **tableaux d'analyse** des difficultés majeures (Q13) et de la gravité des incidents (Q15 à Q22).
+   - Les **attentes fonctionnelles** (Q23) et les **budgets mensuels acceptables** (Q37).
+   - **Mise à jour 100% automatique** : toutes les métriques utilisent des formules dynamiques (`COUNTA`, `COUNTIF`) qui se recalculent en temps réel à chaque nouvelle réponse !
+
+---
+
+## 3. Création d'un Environnement de Test Isolé (Optionnel)
 
 Pour tester des écritures automatisées sans jamais polluer la feuille de production :
 

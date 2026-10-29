@@ -127,3 +127,4 @@ Un segment est qualifié de **« Haut Potentiel »** lorsqu'il cumule :
 3. Une disposition à tester ou payer (Q41/Q42) et un accord de recontact (Q46).
 
 Le dashboard calcule ces métriques croisées en appliquant dynamiquement les filtres par **Ville** et par **Type de commerce**.
+
