@@ -132,8 +132,7 @@ Assert-Test -TestName "TEST 5/15: Préservation intégrale des 46 questions du f
 $hasSilentAccumulation = $htmlRaw.Contains("saveResponseLocally")
 $hasDraftPurgeOnSuccess = $htmlRaw.Contains("localStorage.removeItem(STORAGE_KEY_DRAFT)")
 $hasResetForm = $htmlRaw.Contains("resetFormForNewRespondent")
-$hasLocalPurgeBtn = $htmlRaw.Contains("purgeLocalDataWithConfirmation")
-$isPass6 = (-not $hasSilentAccumulation) -and $hasDraftPurgeOnSuccess -and $hasResetForm -and $hasLocalPurgeBtn
+$isPass6 = (-not $hasSilentAccumulation) -and $hasDraftPurgeOnSuccess -and $hasResetForm
 Assert-Test -TestName "TEST 6/15: Protection de la vie privée (RGPD - localStorage minimisé)" `
     -Condition $isPass6 `
     -Expected "Pas de stockage systématique des réponses personnelles, purge auto du draft après succès, reset pour nouvel utilisateur" `

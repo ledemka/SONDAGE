@@ -485,37 +485,6 @@
       filter: grayscale(40%);
     }
 
-    /* Config Bar / Settings drawer toggle */
-    .top-toolbar {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .pill-btn {
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 9999px;
-      padding: 6px 14px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #475569;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      box-shadow: var(--shadow-sm);
-      transition: all 0.15s;
-    }
-
-    .pill-btn:hover {
-      background: #f8fafc;
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-
     .status-alert {
       padding: 12px 14px;
       border-radius: var(--radius-sm);
@@ -629,20 +598,16 @@
   </noscript>
 
   <div class="app-container" id="app">
-    <!-- Top toolbar for data privacy and local controls -->
-    <div class="top-toolbar">
-      <button type="button" class="pill-btn" onclick="exportSingleSubmissionCsv()" title="Télécharger la saisie actuelle en CSV de secours">
-        📥 Sauvegarde CSV de secours
-      </button>
-      <button type="button" class="pill-btn" onclick="purgeLocalDataWithConfirmation()" title="Purger le brouillon et réinitialiser le formulaire" style="color:#b91c1c;">
-        🗑️ Réinitialiser & Effacer les données locales
-      </button>
-    </div>
-
     <!-- Header -->
     <header class="survey-header">
       <div class="badge-tag">
-        🇨🇲 Enquête Terrain • Cameroun
+        <svg width="20" height="14" viewBox="0 0 900 600" style="border-radius:2px; vertical-align:middle; display:inline-block; box-shadow:0 0 1px rgba(0,0,0,0.5);" aria-label="Drapeau du Cameroun" role="img">
+          <rect width="300" height="600" fill="#007a5e"/>
+          <rect x="300" width="300" height="600" fill="#ce1126"/>
+          <rect x="600" width="300" height="600" fill="#fcd116"/>
+          <polygon points="450,225 468,279 525,279 479,313 496,367 450,333 404,367 421,313 375,279 432,279" fill="#fcd116"/>
+        </svg>
+        <span>Enquête Terrain • Cameroun</span>
       </div>
       <h1 class="survey-title">Étude de Marché — Logiciel de Gestion des Commerces</h1>
       <p style="font-size: 0.95rem; color: #475569;">
