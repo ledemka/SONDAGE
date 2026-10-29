@@ -590,7 +590,7 @@ function onOpen() {
 
 /**
  * Génère ou met à jour l'onglet 'Dashboard_KPI' directement dans Google Sheets
- * avec formules natives en temps réel, cartes KPI et tableaux croisés.
+ * avec calculs immédiats des données réelles + formules dynamiques temps réel.
  */
 function setupOrUpdateDashboardSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -607,6 +607,12 @@ function setupOrUpdateDashboardSheet() {
       Logger.log("Info migration automatique : " + eMig.toString());
     }
   }
+
+  // 3. Lire les données réelles de l'onglet v2 pour calcul direct
+  const lastRow = v2Sheet.getLastRow();
+  const lastCol = Math.min(v2Sheet.getLastColumn(), HEADERS_V2.length);
+  const rows = lastRow > 1 ? v2Sheet.getRange(2, 1, lastRow - 1, lastCol).getValues() : [];
+  const total = rows.length;
 
   let dash = ss.getSheetByName(SHEET_NAME_DASHBOARD);
   if (!dash) {
@@ -625,16 +631,16 @@ function setupOrUpdateDashboardSheet() {
 
   // Largeurs de colonnes
   dash.setColumnWidth(1, 30);  // A (marge)
-  dash.setColumnWidth(2, 220); // B
-  dash.setColumnWidth(3, 100); // C
+  dash.setColumnWidth(2, 230); // B
+  dash.setColumnWidth(3, 90);  // C
   dash.setColumnWidth(4, 90);  // D
   dash.setColumnWidth(5, 30);  // E (séparateur)
   dash.setColumnWidth(6, 240); // F
-  dash.setColumnWidth(7, 100); // G
+  dash.setColumnWidth(7, 90);  // G
   dash.setColumnWidth(8, 90);  // H
   dash.setColumnWidth(9, 30);  // I (séparateur)
   dash.setColumnWidth(10, 240); // J
-  dash.setColumnWidth(11, 100); // K
+  dash.setColumnWidth(11, 90);  // K
   dash.setColumnWidth(12, 90);  // L
 
   // 1. BANNIÈRE TITRE (A1:L1)
@@ -650,151 +656,221 @@ function setupOrUpdateDashboardSheet() {
   dash.setRowHeight(1, 40);
 
   // Sous-titre et Horodatage (A2:L2)
-  dash.getRange("B2:D2").merge().setValue("Source : " + SHEET_NAME_V2 + " (Calculs en temps réel)").setFontSize(9).setFontColor("#64748b");
+  dash.getRange("B2:D2").merge().setValue("Source : " + SHEET_NAME_V2 + " (" + total + " réponses analysées)").setFontSize(9).setFontColor("#64748b");
   dash.getRange("J2").setValue("Dernière actualisation :").setFontSize(9).setFontColor("#64748b").setHorizontalAlignment("right");
-  dash.getRange("K2:L2").merge().setFormula("=NOW()").setFontSize(9).setFontColor("#64748b").setNumberFormat("dd/mm/yyyy hh:mm:ss");
+  dash.getRange("K2:L2").merge().setValue(new Date()).setFontSize(9).setFontColor("#64748b").setNumberFormat("dd/mm/yyyy hh:mm:ss");
 
-  // 2. CARTES D'INDICATEURS CLÉS (KPI SUMMARY)
+  // 2. CALCUL DIRECT DES CARTES KPI
+  const countPilote = rows.filter(r => String(r[47] || '').toLowerCase().includes('oui')).length;
+  const countPayer = rows.filter(r => {
+    const v = String(r[48] || '').toLowerCase();
+    return v === 'oui' || v.includes('peut-être') || v.includes('apres') || v.includes('après');
+  }).length;
+  const countRecontact = rows.filter(r => String(r[52] || '').trim().toLowerCase() === 'oui').length;
+
+  const pctPilote = total > 0 ? (countPilote / total) : 0;
+  const pctPayer = total > 0 ? (countPayer / total) : 0;
+  const pctRecontact = total > 0 ? (countRecontact / total) : 0;
+
   // Card 1 : Total Réponses (Cellule B5)
   dash.getRange("B4:C4").merge().setValue("TOTAL RÉPONSES VALIDES").setFontSize(8).setFontWeight("bold").setFontColor("#166534").setHorizontalAlignment("center");
-  dash.getRange("B5:C5").merge().setFormula("=COUNTA(" + SHEET_NAME_V2 + "!A2:A)").setFontSize(18).setFontWeight("bold").setFontColor("#166534").setHorizontalAlignment("center").setVerticalAlignment("middle");
+  const cellB5 = dash.getRange("B5:C5").merge();
+  cellB5.setValue(total).setFontSize(18).setFontWeight("bold").setFontColor("#166534").setHorizontalAlignment("center").setVerticalAlignment("middle");
+  try { cellB5.setFormula("=COUNTA('" + SHEET_NAME_V2 + "'!A2:A)"); } catch(e) {}
   dash.getRange("B4:C5").setBackground("#f0fdf4").setBorder(true, true, true, true, false, false, "#bbf7d0", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 2 : Candidats Pilote (Q41) - Réfère strictement à B5
+  // Card 2 : Candidats Pilote (Q41) (Cellule E5)
   dash.getRange("E4:F4").merge().setValue("CANDIDATS PILOTE (Q41)").setFontSize(8).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center");
-  dash.getRange("E5:F5").merge().setFormula("=IF($B$5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!AV2:AV, \"*Oui*\") / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  const cellE5 = dash.getRange("E5:F5").merge();
+  cellE5.setValue(pctPilote).setFontSize(18).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  try { cellE5.setFormula("=IF($B$5=0, 0, COUNTIF('" + SHEET_NAME_V2 + "'!AV2:AV, \"*Oui*\") / $B$5)"); } catch(e) {}
   dash.getRange("E4:F5").setBackground("#fefce8").setBorder(true, true, true, true, false, false, "#fef08a", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 3 : Prêts à Payer (Q42) - Réfère strictement à B5
+  // Card 3 : Prêts à Payer (Q42) (Cellule H5)
   dash.getRange("H4:I4").merge().setValue("PRÊTS À PAYER (Q42)").setFontSize(8).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center");
-  dash.getRange("H5:I5").merge().setFormula("=IF($B$5=0, 0, (COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Oui*\") + COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Peut-être*\")) / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  const cellH5 = dash.getRange("H5:I5").merge();
+  cellH5.setValue(pctPayer).setFontSize(18).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  try { cellH5.setFormula("=IF($B$5=0, 0, (COUNTIF('" + SHEET_NAME_V2 + "'!AW2:AW, \"*Oui*\") + COUNTIF('" + SHEET_NAME_V2 + "'!AW2:AW, \"*Peut-être*\")) / $B$5)"); } catch(e) {}
   dash.getRange("H4:I5").setBackground("#eff6ff").setBorder(true, true, true, true, false, false, "#bfdbfe", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 4 : Accord Recontact (Q46) - Réfère strictement à B5
+  // Card 4 : Accord Recontact (Q46) (Cellule K5)
   dash.getRange("K4:L4").merge().setValue("ACCORD RECONTACT (Q46)").setFontSize(8).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center");
-  dash.getRange("K5:L5").merge().setFormula("=IF($B$5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!BA2:BA, \"Oui\") / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  const cellK5 = dash.getRange("K5:L5").merge();
+  cellK5.setValue(pctRecontact).setFontSize(18).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  try { cellK5.setFormula("=IF($B$5=0, 0, COUNTIF('" + SHEET_NAME_V2 + "'!BA2:BA, \"Oui\") / $B$5)"); } catch(e) {}
   dash.getRange("K4:L5").setBackground("#fdf2f8").setBorder(true, true, true, true, false, false, "#fbcfe8", SpreadsheetApp.BorderStyle.SOLID);
 
   dash.setRowHeight(4, 20);
   dash.setRowHeight(5, 34);
 
-  // Helper pour formater une table
+  // Helper pour formater une table avec valeurs directes + formules
   function formatTable(startRow, startCol, headerTitle, headers, rowsData) {
-    // Titre de bloc
     const titleCell = dash.getRange(startRow, startCol, 1, 3);
     titleCell.merge().setValue(headerTitle).setBackground(tealDark).setFontColor(white).setFontWeight("bold").setFontSize(10).setHorizontalAlignment("center");
     
-    // En-têtes de colonnes
     const hRange = dash.getRange(startRow + 1, startCol, 1, 3);
     hRange.setValues([headers]).setBackground(slateHeader).setFontColor(white).setFontWeight("bold").setFontSize(9);
     
-    // Données & Formules
     for (let r = 0; r < rowsData.length; r++) {
       const curRow = startRow + 2 + r;
       dash.getRange(curRow, startCol).setValue(rowsData[r].label).setFontSize(9);
-      dash.getRange(curRow, startCol + 1).setFormula(rowsData[r].formulaCount).setFontSize(9).setHorizontalAlignment("right");
-      dash.getRange(curRow, startCol + 2).setFormula(rowsData[r].formulaPct).setFontSize(9).setHorizontalAlignment("right").setNumberFormat("0.0%");
+      
+      const countCell = dash.getRange(curRow, startCol + 1);
+      countCell.setValue(rowsData[r].valCount).setFontSize(9).setHorizontalAlignment("right");
+      if (rowsData[r].formulaCount) {
+        try { countCell.setFormula(rowsData[r].formulaCount); } catch (e) {}
+      }
+
+      const pctCell = dash.getRange(curRow, startCol + 2);
+      pctCell.setValue(rowsData[r].valPct).setFontSize(9).setHorizontalAlignment("right").setNumberFormat("0.0%");
+      if (rowsData[r].formulaPct) {
+        try { pctCell.setFormula(rowsData[r].formulaPct); } catch (e) {}
+      }
+
       if (r % 2 === 1) {
         dash.getRange(curRow, startCol, 1, 3).setBackground("#f8fafc");
       }
     }
 
-    // Bordures
     dash.getRange(startRow, startCol, rowsData.length + 2, 3).setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
   }
 
   // 3. BLOCS LIGNE 8 : Villes, Secteurs, Difficultés
-  // Table Villes (Cols B-D, Row 8)
-  const villes = ["Douala", "Yaoundé", "Bafoussam", "Garoua", "Bamenda", "Autre"];
-  const villesRows = villes.map((v, i) => ({
-    label: v,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!H2:H, "*' + (v === "Autre" ? "Autre" : v) + '*")',
-    formulaPct: '=IF($B$5=0, 0, C' + (10 + i) + '/$B$5)'
-  }));
+  // Table 1 : Villes (Cols B-D, Row 8)
+  const villesKeys = [
+    { label: "Douala", key: "Douala" },
+    { label: "Yaoundé", key: "Yaound" },
+    { label: "Bafoussam", key: "Bafoussam" },
+    { label: "Garoua", key: "Garoua" },
+    { label: "Bamenda", key: "Bamenda" }
+  ];
+  let accountedVilles = 0;
+  const villesRows = villesKeys.map((v, i) => {
+    const c = rows.filter(r => String(r[7] || r[5] || '').includes(v.key)).length;
+    accountedVilles += c;
+    return {
+      label: v.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: "=COUNTIF('" + SHEET_NAME_V2 + "'!H2:H, \"*" + v.key + "*\")",
+      formulaPct: "=IF($B$5=0, 0, C" + (10 + i) + "/$B$5)"
+    };
+  });
+  const autreVilles = Math.max(0, total - accountedVilles);
+  villesRows.push({
+    label: "Autre / Localité",
+    valCount: autreVilles,
+    valPct: total > 0 ? (autreVilles / total) : 0,
+    formulaCount: "=MAX(0, $B$5 - SUM(C10:C14))",
+    formulaPct: "=IF($B$5=0, 0, C15/$B$5)"
+  });
   formatTable(8, 2, "1. RÉPARTITION PAR VILLE (Q1)", ["Ville", "Répondants", "% Total"], villesRows);
 
-  // Table Secteurs (Cols F-H, Row 8)
+  // Table 2 : Secteurs d'Activité (Cols F-H, Row 8)
   const secteurs = [
-    { label: "Boutique / Alimentation", key: "*Boutique*" },
-    { label: "Quincaillerie / Matériaux", key: "*Quincaillerie*" },
-    { label: "Prêt-à-porter / Chaussures", key: "*Prêt-à-porter*" },
-    { label: "Cosmétiques / Beauté", key: "*Cosmétiques*" },
-    { label: "Électronique / Téléphonie", key: "*Électronique*" },
-    { label: "Pharmacie / Parapharmacie", key: "*Pharmacie*" },
-    { label: "Dépôt de boissons / Bar", key: "*boissons*" },
-    { label: "Restaurant / Snack", key: "*Restaurant*" },
-    { label: "Pièces détachées auto/moto", key: "*Pièces*" },
-    { label: "Autre commerce", key: "*Autre*" }
+    { label: "Quincaillerie / Matériaux", key: "Quincaillerie" },
+    { label: "Prêt-à-porter / Vêtements", key: "Prêt-à-porter" },
+    { label: "Alimentation / Épicerie", key: "Alimentation" },
+    { label: "Électronique / Téléphonie", key: "Électronique" },
+    { label: "Pharmacie / Santé", key: "Pharmacie" },
+    { label: "Pièces détachées auto/moto", key: "pièces" },
+    { label: "Cosmétique / Beauté", key: "Cosmétique" },
+    { label: "Dépôt de boissons / Bar", key: "boissons" },
+    { label: "Boulangerie / Restaurant", key: "Boulangerie" }
   ];
-  const secteursRows = secteurs.map((s, i) => ({
-    label: s.label,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!I2:I, "' + s.key + '")',
-    formulaPct: '=IF($B$5=0, 0, G' + (10 + i) + '/$B$5)'
-  }));
+  const secteursRows = secteurs.map((s, i) => {
+    const c = rows.filter(r => String(r[8] || '').toLowerCase().includes(s.key.toLowerCase())).length;
+    return {
+      label: s.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: "=COUNTIF('" + SHEET_NAME_V2 + "'!I2:I, \"*" + s.key + "*\")",
+      formulaPct: "=IF($B$5=0, 0, G" + (10 + i) + "/$B$5)"
+    };
+  });
   formatTable(8, 6, "2. SECTEURS D'ACTIVITÉ (Q2)", ["Secteur d'Activité", "Commerces", "% Total"], secteursRows);
 
-  // Table Top Difficultés Q13 (Cols J-L, Row 8)
+  // Table 3 : Top Difficultés Rencontrées Q13 (Cols J-L, Row 8)
   const diffs = [
-    { label: "Ruptures de stock", key: "*Ruptures*" },
-    { label: "Produits perdus, volés, détériorés", key: "*perdus*" },
-    { label: "Difficultés calcul des bénéfices", key: "*bénéfices*" },
-    { label: "Erreurs de caisse / manquants", key: "*caisse*" },
-    { label: "Suivi des dettes et impayés clients", key: "*dettes*" },
-    { label: "Perte de temps administratif", key: "*temps*" },
-    { label: "Manque visibilité rentabilité", key: "*visibilité*" }
+    { label: "Suivi des dettes des clients", key: "dettes des clients" },
+    { label: "Ruptures de stock imprévues", key: "Ruptures" },
+    { label: "Contrôle des employés", key: "employés" },
+    { label: "Dettes envers fournisseurs", key: "fournisseurs" },
+    { label: "Écarts de caisse / manquants", key: "caisse" },
+    { label: "Erreurs calcul des bénéfices", key: "bénéfices" }
   ];
-  const diffsRows = diffs.map((d, i) => ({
-    label: d.label,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!T2:T, "' + d.key + '")',
-    formulaPct: '=IF($B$5=0, 0, K' + (10 + i) + '/$B$5)'
-  }));
+  const diffsRows = diffs.map((d, i) => {
+    const c = rows.filter(r => String(r[19] || '').toLowerCase().includes(d.key.toLowerCase())).length;
+    return {
+      label: d.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: "=COUNTIF('" + SHEET_NAME_V2 + "'!T2:T, \"*" + d.key + "*\")",
+      formulaPct: "=IF($B$5=0, 0, K" + (10 + i) + "/$B$5)"
+    };
+  });
   formatTable(8, 10, "3. TOP DIFFICULTÉS RENCONTRÉES (Q13)", ["Difficulté", "Citations", "% Répondants"], diffsRows);
 
-  // 4. BLOCS LIGNE 22 : Incidents critiques, Fonctionnalités attendues, Prix acceptable
+  // 4. BLOCS LIGNE 20 : Incidents critiques, Besoins fonctionnels, Budget
   const incidents = [
-    { label: "Ruptures de stock fréquentes (Q15)", formula: '=COUNTIF(' + SHEET_NAME_V2 + '!V2:V, "*semaine*") + COUNTIF(' + SHEET_NAME_V2 + '!V2:V, "*mois*")' },
-    { label: "Flou récurrent sur bénéfices (Q16)", formula: '=COUNTIF(' + SHEET_NAME_V2 + '!W2:W, "*Très souvent*") + COUNTIF(' + SHEET_NAME_V2 + '!W2:W, "*Souvent*")' },
-    { label: "Écarts de caisse inexpliqués (Q17)", formula: '=COUNTIF(' + SHEET_NAME_V2 + '!X2:X, "*Très souvent*") + COUNTIF(' + SHEET_NAME_V2 + '!X2:X, "*Parfois*")' },
-    { label: "Oublis fréquents de dettes (Q18)", formula: '=COUNTIF(' + SHEET_NAME_V2 + '!Y2:Y, "*Souvent*") + COUNTIF(' + SHEET_NAME_V2 + '!Y2:Y, "*Parfois*")' },
-    { label: "Pertes d'argent confirmées (Q22)", formula: '=COUNTIF(' + SHEET_NAME_V2 + '!AC2:AC, "Oui*")' }
+    { label: "Pertes financières constatées (Q22)", check: r => String(r[28] || '').toLowerCase().startsWith('oui'), formula: "=COUNTIF('" + SHEET_NAME_V2 + "'!AC2:AC, \"Oui*\")" },
+    { label: "Ruptures de stock fréquentes (Q15)", check: r => { const v = String(r[21] || '').toLowerCase(); return v.includes('semaine') || v.includes('mois') || v.includes('parfois'); }, formula: "=COUNTIF('" + SHEET_NAME_V2 + "'!V2:V, \"*semaine*\") + COUNTIF('" + SHEET_NAME_V2 + "'!V2:V, \"*mois*\") + COUNTIF('" + SHEET_NAME_V2 + "'!V2:V, \"*Parfois*\")" },
+    { label: "Flou récurrent sur bénéfices (Q16)", check: r => { const v = String(r[22] || '').toLowerCase(); return v.includes('très') || v.includes('souvent') || v.includes('parfois'); }, formula: "=COUNTIF('" + SHEET_NAME_V2 + "'!W2:W, \"*souvent*\") + COUNTIF('" + SHEET_NAME_V2 + "'!W2:W, \"*Parfois*\")" },
+    { label: "Écarts de caisse inexpliqués (Q17)", check: r => { const v = String(r[23] || '').toLowerCase(); return v.includes('très') || v.includes('parfois'); }, formula: "=COUNTIF('" + SHEET_NAME_V2 + "'!X2:X, \"*souvent*\") + COUNTIF('" + SHEET_NAME_V2 + "'!X2:X, \"*Parfois*\")" },
+    { label: "Oublis fréquents de dettes (Q18)", check: r => { const v = String(r[24] || '').toLowerCase(); return v.includes('souvent') || v.includes('parfois'); }, formula: "=COUNTIF('" + SHEET_NAME_V2 + "'!Y2:Y, \"*Souvent*\") + COUNTIF('" + SHEET_NAME_V2 + "'!Y2:Y, \"*Parfois*\")" }
   ];
-  const incidentsRows = incidents.map((inc, i) => ({
-    label: inc.label,
-    formulaCount: inc.formula,
-    formulaPct: '=IF($B$5=0, 0, C' + (24 + i) + '/$B$5)'
-  }));
-  formatTable(22, 2, "4. INCIDENTS CRITIQUES & PERTES", ["Incident Évalué", "Commerces", "% Total"], incidentsRows);
+  const incidentsRows = incidents.map((inc, i) => {
+    const c = rows.filter(inc.check).length;
+    return {
+      label: inc.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: inc.formula,
+      formulaPct: "=IF($B$5=0, 0, C" + (22 + i) + "/$B$5)"
+    };
+  });
+  formatTable(20, 2, "4. INCIDENTS CRITIQUES & PERTES", ["Incident Évalué", "Commerces", "% Total"], incidentsRows);
 
   const features = [
-    { label: "Enregistrement rapide des ventes", key: "*rapide*" },
-    { label: "Gestion automatique des stocks", key: "*stocks*" },
-    { label: "Alertes de stock faible", key: "*Alertes*" },
-    { label: "Calcul marges et bénéfices", key: "*marges*" },
-    { label: "Suivi des crédits et dettes clients", key: "*crédits*" },
-    { label: "Rapports de ventes quotidiens", key: "*Rapports*" },
-    { label: "Mode hors-ligne indispensable", key: "*hors-ligne*" }
+    { label: "Enregistrement rapide des ventes", key: "rapide" },
+    { label: "Alertes de stock faible", key: "Alertes" },
+    { label: "Suivi des crédits et dettes clients", key: "dettes" },
+    { label: "Rapports de bénéfices journaliers", key: "Rapports" },
+    { label: "Gestion automatique des stocks", key: "stocks" },
+    { label: "Gestion multi-boutiques", key: "multi" }
   ];
-  const featuresRows = features.map((f, i) => ({
-    label: f.label,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!AD2:AD, "' + f.key + '")',
-    formulaPct: '=IF($B$5=0, 0, G' + (24 + i) + '/$B$5)'
-  }));
-  formatTable(22, 6, "5. BESOINS FONCTIONNELS (Q23)", ["Fonctionnalité Demandée", "Demandes", "% Répondants"], featuresRows);
+  const featuresRows = features.map((f, i) => {
+    const c = rows.filter(r => String(r[29] || '').toLowerCase().includes(f.key.toLowerCase())).length;
+    return {
+      label: f.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: "=COUNTIF('" + SHEET_NAME_V2 + "'!AD2:AD, \"*" + f.key + "*\")",
+      formulaPct: "=IF($B$5=0, 0, G" + (22 + i) + "/$B$5)"
+    };
+  });
+  formatTable(20, 6, "5. BESOINS FONCTIONNELS (Q23)", ["Fonctionnalité Attendue", "Demandes", "% Répondants"], featuresRows);
 
   const budgets = [
-    { label: "Gratuit uniquement", key: "*Gratuit*" },
-    { label: "1 000 à 4 999 FCFA / mois", key: "*1 000*" },
-    { label: "5 000 à 9 999 FCFA / mois", key: "*5 000*" },
-    { label: "10 000 à 14 999 FCFA / mois", key: "*10 000*" },
-    { label: "15 000 à 25 000 FCFA / mois", key: "*15 000*" },
-    { label: "Plus de 25 000 FCFA / mois", key: "*Plus de*" }
+    { label: "1 000 à 4 999 FCFA / mois", key: "1 000" },
+    { label: "5 000 à 9 999 FCFA / mois", key: "5 000" },
+    { label: "10 000 à 20 000 FCFA / mois", key: "10 000" }
   ];
-  const budgetsRows = budgets.map((b, i) => ({
-    label: b.label,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!AR2:AR, "' + b.key + '")',
-    formulaPct: '=IF($B$5=0, 0, K' + (24 + i) + '/$B$5)'
-  }));
-  formatTable(22, 10, "6. BUDGET MENSUEL ACCEPTABLE (Q37)", ["Tranche de Prix (FCFA)", "Répondants", "% Total"], budgetsRows);
+  const budgetsRows = budgets.map((b, i) => {
+    const c = rows.filter(r => String(r[43] || '').includes(b.key)).length;
+    return {
+      label: b.label,
+      valCount: c,
+      valPct: total > 0 ? (c / total) : 0,
+      formulaCount: "=COUNTIF('" + SHEET_NAME_V2 + "'!AR2:AR, \"*" + b.key + "*\")",
+      formulaPct: "=IF($B$5=0, 0, K" + (22 + i) + "/$B$5)"
+    };
+  });
+  formatTable(20, 10, "6. BUDGET MENSUEL ACCEPTABLE (Q37)", ["Tranche de Prix (FCFA)", "Répondants", "% Total"], budgetsRows);
+
+  Logger.log("Onglet '" + SHEET_NAME_DASHBOARD + "' configuré avec succès (" + total + " réponses traitées).");
+  return "Onglet Dashboard KPI actualisé avec succès (" + total + " réponses analysées).";
+}
 
   Logger.log("Onglet '" + SHEET_NAME_DASHBOARD + "' configuré avec succès.");
   return "Onglet Dashboard KPI généré avec succès dans Google Sheets.";
