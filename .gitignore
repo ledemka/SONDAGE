@@ -1,0 +1,14 @@
+# Dépendances & Builds
+node_modules/
+.vercel/
+
+# Variables d'environnement locales (NE JAMAIS COMMITER DE FICHIERS AVEC SECRETS)
+.env
+.env.local
+.env.*.local
+
+# Fichiers système et logs
+*.log
+.DS_Store
+Thumbs.db
+
