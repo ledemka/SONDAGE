@@ -594,8 +594,21 @@ function onOpen() {
  */
 function setupOrUpdateDashboardSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let dash = ss.getSheetByName(SHEET_NAME_DASHBOARD);
   
+  // 1. S'assurer que l'onglet v2 existe
+  const v2Sheet = getOrCreateV2Sheet(ss);
+
+  // 2. Si l'onglet v2 est vide et que l'ancien onglet contient des données, migrer automatiquement
+  const legacySheet = ss.getSheetByName(SHEET_NAME_LEGACY);
+  if (v2Sheet.getLastRow() <= 1 && legacySheet && legacySheet.getLastRow() > 1) {
+    try {
+      migrateLegacyV1ToV2();
+    } catch (eMig) {
+      Logger.log("Info migration automatique : " + eMig.toString());
+    }
+  }
+
+  let dash = ss.getSheetByName(SHEET_NAME_DASHBOARD);
   if (!dash) {
     dash = ss.insertSheet(SHEET_NAME_DASHBOARD, 0); // Positionner en premier onglet
   }
@@ -642,24 +655,24 @@ function setupOrUpdateDashboardSheet() {
   dash.getRange("K2:L2").merge().setFormula("=NOW()").setFontSize(9).setFontColor("#64748b").setNumberFormat("dd/mm/yyyy hh:mm:ss");
 
   // 2. CARTES D'INDICATEURS CLÉS (KPI SUMMARY)
-  // Card 1 : Total Réponses
+  // Card 1 : Total Réponses (Cellule B5)
   dash.getRange("B4:C4").merge().setValue("TOTAL RÉPONSES VALIDES").setFontSize(8).setFontWeight("bold").setFontColor("#166534").setHorizontalAlignment("center");
   dash.getRange("B5:C5").merge().setFormula("=COUNTA(" + SHEET_NAME_V2 + "!A2:A)").setFontSize(18).setFontWeight("bold").setFontColor("#166534").setHorizontalAlignment("center").setVerticalAlignment("middle");
   dash.getRange("B4:C5").setBackground("#f0fdf4").setBorder(true, true, true, true, false, false, "#bbf7d0", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 2 : Candidats Pilote (Q41)
+  // Card 2 : Candidats Pilote (Q41) - Réfère strictement à B5
   dash.getRange("E4:F4").merge().setValue("CANDIDATS PILOTE (Q41)").setFontSize(8).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center");
-  dash.getRange("E5:F5").merge().setFormula("=IF(C5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!AV2:AV, \"*Oui*\") / C5)").setFontSize(18).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  dash.getRange("E5:F5").merge().setFormula("=IF($B$5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!AV2:AV, \"*Oui*\") / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#854d0e").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
   dash.getRange("E4:F5").setBackground("#fefce8").setBorder(true, true, true, true, false, false, "#fef08a", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 3 : Prêts à Payer (Q42)
+  // Card 3 : Prêts à Payer (Q42) - Réfère strictement à B5
   dash.getRange("H4:I4").merge().setValue("PRÊTS À PAYER (Q42)").setFontSize(8).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center");
-  dash.getRange("H5:I5").merge().setFormula("=IF(C5=0, 0, (COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Oui*\") + COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Peut-être*\")) / C5)").setFontSize(18).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  dash.getRange("H5:I5").merge().setFormula("=IF($B$5=0, 0, (COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Oui*\") + COUNTIF(" + SHEET_NAME_V2 + "!AW2:AW, \"*Peut-être*\")) / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#1e40af").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
   dash.getRange("H4:I5").setBackground("#eff6ff").setBorder(true, true, true, true, false, false, "#bfdbfe", SpreadsheetApp.BorderStyle.SOLID);
 
-  // Card 4 : Accord Recontact (Q46)
+  // Card 4 : Accord Recontact (Q46) - Réfère strictement à B5
   dash.getRange("K4:L4").merge().setValue("ACCORD RECONTACT (Q46)").setFontSize(8).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center");
-  dash.getRange("K5:L5").merge().setFormula("=IF(C5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!BA2:BA, \"Oui\") / C5)").setFontSize(18).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
+  dash.getRange("K5:L5").merge().setFormula("=IF($B$5=0, 0, COUNTIF(" + SHEET_NAME_V2 + "!BA2:BA, \"Oui\") / $B$5)").setFontSize(18).setFontWeight("bold").setFontColor("#9d174d").setHorizontalAlignment("center").setVerticalAlignment("middle").setNumberFormat("0.0%");
   dash.getRange("K4:L5").setBackground("#fdf2f8").setBorder(true, true, true, true, false, false, "#fbcfe8", SpreadsheetApp.BorderStyle.SOLID);
 
   dash.setRowHeight(4, 20);
@@ -695,8 +708,8 @@ function setupOrUpdateDashboardSheet() {
   const villes = ["Douala", "Yaoundé", "Bafoussam", "Garoua", "Bamenda", "Autre"];
   const villesRows = villes.map((v, i) => ({
     label: v,
-    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!H2:H, "' + (v === "Autre" ? "*Autre*" : v) + '")',
-    formulaPct: '=IF($C$5=0, 0, C' + (10 + i) + '/$C$5)'
+    formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!H2:H, "*' + (v === "Autre" ? "Autre" : v) + '*")',
+    formulaPct: '=IF($B$5=0, 0, C' + (10 + i) + '/$B$5)'
   }));
   formatTable(8, 2, "1. RÉPARTITION PAR VILLE (Q1)", ["Ville", "Répondants", "% Total"], villesRows);
 
@@ -716,7 +729,7 @@ function setupOrUpdateDashboardSheet() {
   const secteursRows = secteurs.map((s, i) => ({
     label: s.label,
     formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!I2:I, "' + s.key + '")',
-    formulaPct: '=IF($C$5=0, 0, G' + (10 + i) + '/$C$5)'
+    formulaPct: '=IF($B$5=0, 0, G' + (10 + i) + '/$B$5)'
   }));
   formatTable(8, 6, "2. SECTEURS D'ACTIVITÉ (Q2)", ["Secteur d'Activité", "Commerces", "% Total"], secteursRows);
 
@@ -733,7 +746,7 @@ function setupOrUpdateDashboardSheet() {
   const diffsRows = diffs.map((d, i) => ({
     label: d.label,
     formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!T2:T, "' + d.key + '")',
-    formulaPct: '=IF($C$5=0, 0, K' + (10 + i) + '/$C$5)'
+    formulaPct: '=IF($B$5=0, 0, K' + (10 + i) + '/$B$5)'
   }));
   formatTable(8, 10, "3. TOP DIFFICULTÉS RENCONTRÉES (Q13)", ["Difficulté", "Citations", "% Répondants"], diffsRows);
 
@@ -748,7 +761,7 @@ function setupOrUpdateDashboardSheet() {
   const incidentsRows = incidents.map((inc, i) => ({
     label: inc.label,
     formulaCount: inc.formula,
-    formulaPct: '=IF($C$5=0, 0, C' + (24 + i) + '/$C$5)'
+    formulaPct: '=IF($B$5=0, 0, C' + (24 + i) + '/$B$5)'
   }));
   formatTable(22, 2, "4. INCIDENTS CRITIQUES & PERTES", ["Incident Évalué", "Commerces", "% Total"], incidentsRows);
 
@@ -764,7 +777,7 @@ function setupOrUpdateDashboardSheet() {
   const featuresRows = features.map((f, i) => ({
     label: f.label,
     formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!AD2:AD, "' + f.key + '")',
-    formulaPct: '=IF($C$5=0, 0, G' + (24 + i) + '/$C$5)'
+    formulaPct: '=IF($B$5=0, 0, G' + (24 + i) + '/$B$5)'
   }));
   formatTable(22, 6, "5. BESOINS FONCTIONNELS (Q23)", ["Fonctionnalité Demandée", "Demandes", "% Répondants"], featuresRows);
 
@@ -779,7 +792,7 @@ function setupOrUpdateDashboardSheet() {
   const budgetsRows = budgets.map((b, i) => ({
     label: b.label,
     formulaCount: '=COUNTIF(' + SHEET_NAME_V2 + '!AR2:AR, "' + b.key + '")',
-    formulaPct: '=IF($C$5=0, 0, K' + (24 + i) + '/$C$5)'
+    formulaPct: '=IF($B$5=0, 0, K' + (24 + i) + '/$B$5)'
   }));
   formatTable(22, 10, "6. BUDGET MENSUEL ACCEPTABLE (Q37)", ["Tranche de Prix (FCFA)", "Répondants", "% Total"], budgetsRows);
 
